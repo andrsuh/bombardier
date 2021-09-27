@@ -23,6 +23,7 @@ class ExternalServiceSimulator(
     }
 
     private val financialLog = ConcurrentHashMap<UUID, MutableList<UserAccountFinancialLogRecord>>()
+    private val deliveryLog = ConcurrentHashMap<UUID, DeliveryInfoRecord>()
 
     override suspend fun createUser(name: String): User {
         return userStorage.create(User(name = name)).also {
@@ -56,6 +57,47 @@ class ExternalServiceSimulator(
 
     override suspend fun setDeliveryTime(orderId: UUID, time: Long) {
         TODO("Not yet implemented")
+    }
+
+    override suspend fun simulateDelivery(orderId: UUID) {
+        if (Random.nextBoolean()) {
+            orderStorage.getAndUpdate(orderId) { order ->
+                val deliveryStart = (order as OrderStatus.OrderInDelivery).deliveryStartTime
+                order.copy(
+                    status = OrderStatus.OrderDelivered(
+                        deliveryStart,
+                        deliveryStart + order.deliveryDuration!!.toLong()
+                    )
+                )
+            }
+            deliveryLog[orderId] = DeliveryInfoRecord(
+                outcome = DeliverySubmissionOutcome.SUCCESS,
+                preparedTime = 0,
+                attempts = 1,
+                submittedTime = (orderStorage.get(orderId).status as OrderStatus.OrderDelivered).deliveryFinishTime,
+                submissionStartedTime = (orderStorage.get(orderId).status as OrderStatus.OrderDelivered).deliveryStartTime,
+                transactionId = UUID.randomUUID()
+            )
+        } else {
+            orderStorage.getAndUpdate(orderId) { order ->
+                order.copy(status = OrderStatus.OrderFailed("Delivery failed", order.status))
+            }
+            val currentLog = financialLog[orderId]!!
+            financialLog[orderId]!!.add(
+                UserAccountFinancialLogRecord(
+                    type = FinancialOperationType.REFUND,
+                    amount = currentLog.sumOf {
+                        if (it.type == FinancialOperationType.WITHDRAW) {
+                            it.amount
+                        } else {
+                            -it.amount
+                        }
+                    },
+                    orderId = orderId,
+                    paymentTransactionId = UUID.randomUUID()
+                )
+            )
+        }
     }
 
     override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
@@ -180,8 +222,8 @@ class ExternalServiceSimulator(
         return itemStorage.getBookingRecordsById(bookingId)
     }
 
-    override suspend fun deliveryLog(orderId: Order): DeliveryInfoRecord {
-        TODO("Not yet implemented")
+    override suspend fun deliveryLog(orderId: UUID): DeliveryInfoRecord {
+        return deliveryLog[orderId]!!
     }
 }
 

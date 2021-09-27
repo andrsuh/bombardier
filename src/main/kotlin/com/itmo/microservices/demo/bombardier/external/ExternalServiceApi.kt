@@ -21,6 +21,7 @@ interface ServiceApi {
     suspend fun bookOrder(orderId: UUID): BookingDto //синхронный
     suspend fun getDeliverySlots(orderId: UUID): List<Int> // todo sukhoa in future we should get the Dto with slots. Slot has it's lifetime and should be active within it.
     suspend fun setDeliveryTime(orderId: UUID, time: Long)
+    suspend fun simulateDelivery(orderId: UUID)
     suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto
 
     suspend fun abandonedCardHistory(orderId: UUID): List<AbandonedCardLogRecord>
@@ -28,7 +29,7 @@ interface ServiceApi {
     suspend fun getBookingHistory(bookingId: UUID): List<BookingLogRecord>
     //suspend fun getBookingHistory(orderId: UUID): List<BookingLogRecord>
 
-    suspend fun deliveryLog(orderId: Order): DeliveryInfoRecord
+    suspend fun deliveryLog(orderId: UUID): DeliveryInfoRecord
 }
 
 class DeliveryInfoRecord(
@@ -67,7 +68,7 @@ data class UserAccountFinancialLogRecord( // todo think of refund via TP system
 )
 
 enum class FinancialOperationType {
-    DEPOSIT,
+    REFUND,
     WITHDRAW
 }
 
@@ -104,7 +105,7 @@ sealed class OrderStatus {
     object OrderBooked : OrderStatus()
     class OrderPayed(val paymentTime: Long) : OrderStatus()
     class OrderInDelivery(val deliveryStartTime: Long) : OrderStatus()
-    class OrderDelivered(val deliveryStartTime: Long, deliveryFinishTime: Long) : OrderStatus()
+    class OrderDelivered(val deliveryStartTime: Long, val deliveryFinishTime: Long) : OrderStatus()
     class OrderFailed(reason: String, previousStatus: OrderStatus) : OrderStatus()
 }
 
