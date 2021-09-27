@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
+import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
 
 class ExternalServiceSimulator(
     private val orderStorage: OrderStorage,
@@ -59,14 +61,24 @@ class ExternalServiceSimulator(
         TODO("Not yet implemented")
     }
 
+    @OptIn(ExperimentalTime::class)
     override suspend fun simulateDelivery(orderId: UUID) {
+        orderStorage.getAndUpdate(orderId) { order ->
+            order.copy(status = OrderStatus.OrderInDelivery(System.currentTimeMillis()))
+        }
+        val orderBeforeDelivery = getOrder(orderId)
+        var deliveryDuration = Duration.seconds(orderBeforeDelivery.deliveryDuration!!)
+            .minus(Duration.milliseconds(System.currentTimeMillis() - orderBeforeDelivery.paymentHistory.last().timestamp))
+        if(deliveryDuration.inWholeMilliseconds < 1_000)
+            deliveryDuration = Duration.seconds(1)
+        delay(Random.nextLong(deliveryDuration.inWholeMilliseconds))
         if (Random.nextBoolean()) {
             orderStorage.getAndUpdate(orderId) { order ->
-                val deliveryStart = (order as OrderStatus.OrderInDelivery).deliveryStartTime
+                val deliveryStart = (order.status as OrderStatus.OrderInDelivery).deliveryStartTime
                 order.copy(
                     status = OrderStatus.OrderDelivered(
                         deliveryStart,
-                        deliveryStart + order.deliveryDuration!!.toLong()
+                        System.currentTimeMillis()
                     )
                 )
             }
@@ -80,7 +92,7 @@ class ExternalServiceSimulator(
             )
         } else {
             orderStorage.getAndUpdate(orderId) { order ->
-                order.copy(status = OrderStatus.OrderFailed("Delivery failed", order.status))
+                order.copy(status = OrderStatus.OrderRefund)
             }
             val currentLog = financialLog[orderId]!!
             financialLog[orderId]!!.add(

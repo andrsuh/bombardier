@@ -103,6 +103,7 @@ sealed class OrderStatus {
     object OrderCollecting : OrderStatus()
     object OrderDiscarded : OrderStatus()
     object OrderBooked : OrderStatus()
+    object OrderRefund: OrderStatus()
     class OrderPayed(val paymentTime: Long) : OrderStatus()
     class OrderInDelivery(val deliveryStartTime: Long) : OrderStatus()
     class OrderDelivered(val deliveryStartTime: Long, val deliveryFinishTime: Long) : OrderStatus()
