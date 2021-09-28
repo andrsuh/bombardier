@@ -21,7 +21,7 @@ interface ServiceApi {
     suspend fun bookOrder(orderId: UUID): BookingDto //синхронный
     suspend fun getDeliverySlots(orderId: UUID): List<Int> // todo sukhoa in future we should get the Dto with slots. Slot has it's lifetime and should be active within it.
     suspend fun setDeliveryTime(orderId: UUID, time: Long)
-    suspend fun simulateDelivery(orderId: UUID)
+    suspend fun simulateDelivery(orderId: UUID, userId: UUID)
     suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto
 
     suspend fun abandonedCardHistory(orderId: UUID): List<AbandonedCardLogRecord>

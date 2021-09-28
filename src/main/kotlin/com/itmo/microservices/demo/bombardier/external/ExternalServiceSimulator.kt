@@ -4,16 +4,12 @@ import com.itmo.microservices.demo.bombardier.external.storage.ItemStorage
 import com.itmo.microservices.demo.bombardier.external.storage.OrderStorage
 import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
 import com.itmo.microservices.demo.bombardier.flow.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
-import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
 
 class ExternalServiceSimulator(
     private val orderStorage: OrderStorage,
@@ -34,7 +30,7 @@ class ExternalServiceSimulator(
     }
 
     override suspend fun userFinancialHistory(userId: UUID, orderId: UUID): List<UserAccountFinancialLogRecord> {
-        return financialLog[userId] ?: emptyList()
+        return financialLog[userId]?.filter { it.orderId == orderId } ?: emptyList()
     }
 
     override suspend fun getUser(id: UUID): User {
@@ -61,17 +57,21 @@ class ExternalServiceSimulator(
         TODO("Not yet implemented")
     }
 
-    @OptIn(ExperimentalTime::class)
-    override suspend fun simulateDelivery(orderId: UUID) {
+    override suspend fun simulateDelivery(orderId: UUID, userId: UUID) {
         orderStorage.getAndUpdate(orderId) { order ->
             order.copy(status = OrderStatus.OrderInDelivery(System.currentTimeMillis()))
         }
         val orderBeforeDelivery = getOrder(orderId)
-        var deliveryDuration = Duration.seconds(orderBeforeDelivery.deliveryDuration!!)
-            .minus(Duration.milliseconds(System.currentTimeMillis() - orderBeforeDelivery.paymentHistory.last().timestamp))
-        if(deliveryDuration.inWholeMilliseconds < 1_000)
-            deliveryDuration = Duration.seconds(1)
-        delay(Random.nextLong(deliveryDuration.inWholeMilliseconds))
+//        val deliveryTime = Duration.ofSeconds(30)
+        val deliveryTime = Duration.ofSeconds(orderBeforeDelivery.deliveryDuration!!.toLong())
+            .plus(Duration.ofMillis(orderBeforeDelivery.paymentHistory.last().timestamp))
+        CoroutineScope(Dispatchers.Default).launch {
+            delay(Random.nextLong(deliveryTime.minus(Duration.ofMillis(System.currentTimeMillis())).toMillis()))
+            chooseDeliveryResult(orderId, userId)
+        }
+    }
+
+    private suspend fun chooseDeliveryResult(orderId: UUID, userId: UUID) {
         if (Random.nextBoolean()) {
             orderStorage.getAndUpdate(orderId) { order ->
                 val deliveryStart = (order.status as OrderStatus.OrderInDelivery).deliveryStartTime
@@ -94,8 +94,8 @@ class ExternalServiceSimulator(
             orderStorage.getAndUpdate(orderId) { order ->
                 order.copy(status = OrderStatus.OrderRefund)
             }
-            val currentLog = financialLog[orderId]!!
-            financialLog[orderId]!!.add(
+            val currentLog = userFinancialHistory(userId, orderId)
+            financialLog[userId]!!.add(
                 UserAccountFinancialLogRecord(
                     type = FinancialOperationType.REFUND,
                     amount = currentLog.sumOf {

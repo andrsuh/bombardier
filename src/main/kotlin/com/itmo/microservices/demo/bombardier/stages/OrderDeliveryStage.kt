@@ -2,9 +2,8 @@ package com.itmo.microservices.demo.bombardier.stages
 
 import com.itmo.microservices.demo.bombardier.flow.*
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
+import java.time.Duration
 import java.util.concurrent.TimeUnit
-import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
 
 class OrderDeliveryStage(
     private val serviceApi: ServiceApi
@@ -13,7 +12,6 @@ class OrderDeliveryStage(
         val log = CoroutineLoggingFactory.getLogger(OrderPaymentStage::class.java)
     }
 
-    @OptIn(ExperimentalTime::class)
     override suspend fun run(): TestStage.TestContinuationType {
         val orderBeforeDelivery = serviceApi.getOrder(testCtx().orderId!!)
 
@@ -22,16 +20,19 @@ class OrderDeliveryStage(
             return TestStage.TestContinuationType.FAIL
         }
 
-        serviceApi.simulateDelivery(testCtx().orderId!!)
+        serviceApi.simulateDelivery(testCtx().orderId!!, testCtx().userId!!)
 
-        if (orderBeforeDelivery.status !is OrderStatus.OrderInDelivery) {
+        val orderInDelivery = serviceApi.getOrder(testCtx().orderId!!)
+
+        if (orderInDelivery.status !is OrderStatus.OrderInDelivery) {
             log.error("Incorrect order ${orderBeforeDelivery.id} status for OrderDeliveryStage ${orderBeforeDelivery.status}")
             return TestStage.TestContinuationType.FAIL
         }
 
-        val deliveryDuration = Duration.seconds(orderBeforeDelivery.deliveryDuration!!)
-            .minus(Duration.milliseconds(System.currentTimeMillis() - orderBeforeDelivery.paymentHistory.last().timestamp))
-        ConditionAwaiter.awaitAtMost(deliveryDuration.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+//        val deliveryDuration = Duration.ofSeconds(30)
+        val deliveryDuration = Duration.ofSeconds(orderBeforeDelivery.deliveryDuration!!.toLong())
+            .minus(Duration.ofMillis(System.currentTimeMillis() - orderBeforeDelivery.paymentHistory.last().timestamp))
+        ConditionAwaiter.awaitAtMost(deliveryDuration.toMillis() + 3000, TimeUnit.MILLISECONDS)
             .condition {
                 val updatedOrder = serviceApi.getOrder(testCtx().orderId!!)
                 updatedOrder.status is OrderStatus.OrderDelivered ||
@@ -45,6 +46,7 @@ class OrderDeliveryStage(
                 log.error("Order status of order ${orderBeforeDelivery.id} not changed and no refund")
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }
+            .startWaiting()
         val orderAfterDelivery = serviceApi.getOrder(testCtx().orderId!!)
         when (orderAfterDelivery.status) {
             is OrderStatus.OrderDelivered -> {
@@ -52,6 +54,12 @@ class OrderDeliveryStage(
                 if (deliveryLog.outcome != DeliverySubmissionOutcome.SUCCESS) {
                     log.error("Delivery log for order ${orderAfterDelivery.id} is not DeliverySubmissionOutcome.SUCCESS")
                     return TestStage.TestContinuationType.FAIL
+                }
+                val expectedDeliveryTime = Duration.ofMillis(orderBeforeDelivery.paymentHistory.last().timestamp)
+//                    .plus(Duration.ofSeconds(30))
+                    .plus(Duration.ofSeconds(orderBeforeDelivery.deliveryDuration.toLong()))
+                if (orderAfterDelivery.status.deliveryFinishTime > expectedDeliveryTime.toMillis()) {
+                    log.error("Delivery order ${orderAfterDelivery.id} was shipped at time = ${orderAfterDelivery.status.deliveryFinishTime} later than expected ${expectedDeliveryTime.toMillis()}")
                 }
                 log.info("Order ${orderAfterDelivery.id} was successfully delivered")
             }
