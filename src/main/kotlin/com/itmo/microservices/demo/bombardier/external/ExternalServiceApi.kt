@@ -19,12 +19,7 @@ interface ServiceApi {
 
     suspend fun getAvailableItems(): List<CatalogItem>
 
-    suspend fun putItemToOrder(
-        orderId: UUID,
-        itemId: UUID,
-        amount: Amount
-    ): Boolean // todo sukhoa consider using add instead of put
-
+    suspend fun putItemToOrder(orderId: UUID, itemId: UUID, amount: Amount): Boolean // todo sukhoa consider using add instead of put
     suspend fun bookOrder(orderId: UUID): BookingDto //синхронный
     suspend fun getDeliverySlots(orderId: UUID): List<Duration> // todo sukhoa in future we should get the Dto with slots. Slot has it's lifetime and should be active within it.
     suspend fun setDeliveryTime(orderId: UUID, time: Duration)
