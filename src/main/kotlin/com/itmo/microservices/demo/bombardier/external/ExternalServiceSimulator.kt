@@ -22,6 +22,7 @@ class ExternalServiceSimulator(
 
     private val financialLog = ConcurrentHashMap<UUID, MutableList<UserAccountFinancialLogRecord>>()
     private val deliveryLog = ConcurrentHashMap<UUID, DeliveryInfoRecord>()
+    private val orderToUser = ConcurrentHashMap<UUID, UUID>()
 
     override suspend fun createUser(name: String): User {
         return userStorage.create(User(name = name)).also {
@@ -57,25 +58,25 @@ class ExternalServiceSimulator(
         TODO("Not yet implemented")
     }
 
-    override suspend fun simulateDelivery(orderId: UUID, userId: UUID) {
+    override suspend fun simulateDelivery(orderId: UUID) {
         orderStorage.getAndUpdate(orderId) { order ->
             order.copy(status = OrderStatus.OrderInDelivery(System.currentTimeMillis()))
         }
         val orderBeforeDelivery = getOrder(orderId)
-//        val deliveryTime = Duration.ofSeconds(30)
-        val deliveryTime = Duration.ofSeconds(orderBeforeDelivery.deliveryDuration!!.toLong())
-            .plus(Duration.ofMillis(orderBeforeDelivery.paymentHistory.last().timestamp))
         CoroutineScope(Dispatchers.Default).launch {
-            delay(Random.nextLong(deliveryTime.minus(Duration.ofMillis(System.currentTimeMillis())).toMillis()))
-            chooseDeliveryResult(orderId, userId)
+            delay(Random.nextLong(orderBeforeDelivery.deliveryDuration!!.toLong() + 1_000))
+            chooseDeliveryResult(orderId)
         }
     }
 
-    private suspend fun chooseDeliveryResult(orderId: UUID, userId: UUID) {
-        if (Random.nextBoolean()) {
-            orderStorage.getAndUpdate(orderId) { order ->
-                val deliveryStart = (order.status as OrderStatus.OrderInDelivery).deliveryStartTime
-                order.copy(
+    private suspend fun chooseDeliveryResult(orderId: UUID) {
+        val order = getOrder(orderId)
+        val expectedDeliveryTime = Duration.ofSeconds(order.deliveryDuration!!.toLong())
+            .plus(Duration.ofMillis(order.paymentHistory.last().timestamp))
+        if (System.currentTimeMillis() < expectedDeliveryTime.toMillis()) {
+            orderStorage.getAndUpdate(orderId) {
+                val deliveryStart = (it.status as OrderStatus.OrderInDelivery).deliveryStartTime
+                it.copy(
                     status = OrderStatus.OrderDelivered(
                         deliveryStart,
                         System.currentTimeMillis()
@@ -91,9 +92,11 @@ class ExternalServiceSimulator(
                 transactionId = UUID.randomUUID()
             )
         } else {
-            orderStorage.getAndUpdate(orderId) { order ->
-                order.copy(status = OrderStatus.OrderRefund)
+            orderStorage.getAndUpdate(orderId) {
+                it.copy(status = OrderStatus.OrderRefund)
             }
+            val userId = orderToUser[orderId]!!
+            order.paymentHistory.last().transactionId
             val currentLog = userFinancialHistory(userId, orderId)
             financialLog[userId]!!.add(
                 UserAccountFinancialLogRecord(
@@ -110,9 +113,13 @@ class ExternalServiceSimulator(
                 )
             )
         }
+
+        orderToUser.remove(orderId)
     }
 
     override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
+        orderToUser[orderId] = userId
+
         delay(Random.nextLong(1_000))
 
         val submissionTime = System.currentTimeMillis()

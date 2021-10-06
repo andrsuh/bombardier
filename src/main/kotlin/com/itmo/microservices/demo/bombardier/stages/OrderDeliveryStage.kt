@@ -2,6 +2,7 @@ package com.itmo.microservices.demo.bombardier.stages
 
 import com.itmo.microservices.demo.bombardier.flow.*
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
+import kotlinx.coroutines.delay
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -20,19 +21,9 @@ class OrderDeliveryStage(
             return TestStage.TestContinuationType.FAIL
         }
 
-        serviceApi.simulateDelivery(testCtx().orderId!!, testCtx().userId!!)
+        serviceApi.simulateDelivery(testCtx().orderId!!)
 
-        val orderInDelivery = serviceApi.getOrder(testCtx().orderId!!)
-
-        if (orderInDelivery.status !is OrderStatus.OrderInDelivery) {
-            log.error("Incorrect order ${orderBeforeDelivery.id} status for OrderDeliveryStage ${orderBeforeDelivery.status}")
-            return TestStage.TestContinuationType.FAIL
-        }
-
-//        val deliveryDuration = Duration.ofSeconds(30)
-        val deliveryDuration = Duration.ofSeconds(orderBeforeDelivery.deliveryDuration!!.toLong())
-            .minus(Duration.ofMillis(System.currentTimeMillis() - orderBeforeDelivery.paymentHistory.last().timestamp))
-        ConditionAwaiter.awaitAtMost(deliveryDuration.toMillis() + 3000, TimeUnit.MILLISECONDS)
+        ConditionAwaiter.awaitAtMost(orderBeforeDelivery.deliveryDuration!!.toLong() + 3, TimeUnit.SECONDS)
             .condition {
                 val updatedOrder = serviceApi.getOrder(testCtx().orderId!!)
                 updatedOrder.status is OrderStatus.OrderDelivered ||
@@ -56,7 +47,6 @@ class OrderDeliveryStage(
                     return TestStage.TestContinuationType.FAIL
                 }
                 val expectedDeliveryTime = Duration.ofMillis(orderBeforeDelivery.paymentHistory.last().timestamp)
-//                    .plus(Duration.ofSeconds(30))
                     .plus(Duration.ofSeconds(orderBeforeDelivery.deliveryDuration.toLong()))
                 if (orderAfterDelivery.status.deliveryFinishTime > expectedDeliveryTime.toMillis()) {
                     log.error("Delivery order ${orderAfterDelivery.id} was shipped at time = ${orderAfterDelivery.status.deliveryFinishTime} later than expected ${expectedDeliveryTime.toMillis()}")
