@@ -23,7 +23,7 @@ class OrderDeliveryStage(
 
         serviceApi.simulateDelivery(testCtx().orderId!!)
 
-        ConditionAwaiter.awaitAtMost(orderBeforeDelivery.deliveryDuration!!.toLong() + 3, TimeUnit.SECONDS)
+        ConditionAwaiter.awaitAtMost(orderBeforeDelivery.deliveryDuration!!.toSeconds() + 3, TimeUnit.SECONDS)
             .condition {
                 val updatedOrder = serviceApi.getOrder(testCtx().orderId!!)
                 updatedOrder.status is OrderStatus.OrderDelivered ||
@@ -47,7 +47,7 @@ class OrderDeliveryStage(
                     return TestStage.TestContinuationType.FAIL
                 }
                 val expectedDeliveryTime = Duration.ofMillis(orderBeforeDelivery.paymentHistory.last().timestamp)
-                    .plus(Duration.ofSeconds(orderBeforeDelivery.deliveryDuration.toLong()))
+                    .plus(Duration.ofSeconds(orderBeforeDelivery.deliveryDuration.toSeconds()))
                 if (orderAfterDelivery.status.deliveryFinishTime > expectedDeliveryTime.toMillis()) {
                     log.error("Delivery order ${orderAfterDelivery.id} was shipped at time = ${orderAfterDelivery.status.deliveryFinishTime} later than expected ${expectedDeliveryTime.toMillis()}")
                 }

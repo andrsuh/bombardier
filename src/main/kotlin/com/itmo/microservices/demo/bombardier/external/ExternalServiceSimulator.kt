@@ -70,14 +70,14 @@ class ExternalServiceSimulator(
         }
         val orderBeforeDelivery = getOrder(orderId)
         CoroutineScope(Dispatchers.Default).launch {
-            delay(Random.nextLong(orderBeforeDelivery.deliveryDuration!!.toLong() + 1_000))
+            delay(Random.nextLong(orderBeforeDelivery.deliveryDuration!!.toMillis() + 1_000))
             chooseDeliveryResult(orderId)
         }
     }
 
     private suspend fun chooseDeliveryResult(orderId: UUID) {
         val order = getOrder(orderId)
-        val expectedDeliveryTime = Duration.ofSeconds(order.deliveryDuration!!.toLong())
+        val expectedDeliveryTime = Duration.ofSeconds(order.deliveryDuration!!.toMillis())
             .plus(Duration.ofMillis(order.paymentHistory.last().timestamp))
         if (System.currentTimeMillis() < expectedDeliveryTime.toMillis()) {
             orderStorage.getAndUpdate(orderId) {
