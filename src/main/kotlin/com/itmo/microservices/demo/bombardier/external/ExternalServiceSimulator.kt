@@ -123,6 +123,65 @@ class ExternalServiceSimulator(
         orderToUser.remove(orderId)
     }
 
+    override suspend fun simulateDelivery(orderId: UUID) {
+        orderStorage.getAndUpdate(orderId) { order ->
+            order.copy(status = OrderStatus.OrderInDelivery(System.currentTimeMillis()))
+        }
+        val orderBeforeDelivery = getOrder(orderId)
+        CoroutineScope(Dispatchers.Default).launch {
+            delay(Random.nextLong(orderBeforeDelivery.deliveryDuration!!.toLong() + 1_000))
+            chooseDeliveryResult(orderId)
+        }
+    }
+
+    private suspend fun chooseDeliveryResult(orderId: UUID) {
+        val order = getOrder(orderId)
+        val expectedDeliveryTime = Duration.ofSeconds(order.deliveryDuration!!.toLong())
+            .plus(Duration.ofMillis(order.paymentHistory.last().timestamp))
+        if (System.currentTimeMillis() < expectedDeliveryTime.toMillis()) {
+            orderStorage.getAndUpdate(orderId) {
+                val deliveryStart = (it.status as OrderStatus.OrderInDelivery).deliveryStartTime
+                it.copy(
+                    status = OrderStatus.OrderDelivered(
+                        deliveryStart,
+                        System.currentTimeMillis()
+                    )
+                )
+            }
+            deliveryLog[orderId] = DeliveryInfoRecord(
+                outcome = DeliverySubmissionOutcome.SUCCESS,
+                preparedTime = 0,
+                attempts = 1,
+                submittedTime = (orderStorage.get(orderId).status as OrderStatus.OrderDelivered).deliveryFinishTime,
+                submissionStartedTime = (orderStorage.get(orderId).status as OrderStatus.OrderDelivered).deliveryStartTime,
+                transactionId = UUID.randomUUID()
+            )
+        } else {
+            orderStorage.getAndUpdate(orderId) {
+                it.copy(status = OrderStatus.OrderRefund)
+            }
+            val userId = orderToUser[orderId]!!
+            order.paymentHistory.last().transactionId
+            val currentLog = userFinancialHistory(userId, orderId)
+            financialLog[userId]!!.add(
+                UserAccountFinancialLogRecord(
+                    type = FinancialOperationType.REFUND,
+                    amount = currentLog.sumOf {
+                        if (it.type == FinancialOperationType.WITHDRAW) {
+                            it.amount
+                        } else {
+                            -it.amount
+                        }
+                    },
+                    orderId = orderId,
+                    paymentTransactionId = UUID.randomUUID()
+                )
+            )
+        }
+
+        orderToUser.remove(orderId)
+    }
+
     override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
         orderToUser[orderId] = userId
 
