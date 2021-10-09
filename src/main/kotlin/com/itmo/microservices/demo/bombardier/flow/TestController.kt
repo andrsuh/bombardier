@@ -68,12 +68,14 @@ class TestController(
     suspend fun stopTestByServiceName(serviceName: String) {
         runningTests[serviceName]?.testFlowCoroutine?.cancelAndJoin()
             ?: throw BadRequestException("There is no running tests with serviceName = $serviceName")
+        runningTests.remove(serviceName)
     }
 
     suspend fun stopAllTests() {
         runningTests.values.forEach {
             it.testFlowCoroutine.cancelAndJoin()
         }
+        runningTests.clear()
     }
 
     class TestingFlow(
