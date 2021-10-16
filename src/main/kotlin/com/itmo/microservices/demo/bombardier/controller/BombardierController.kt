@@ -1,5 +1,6 @@
 package com.itmo.microservices.demo.bombardier.controller
 
+import com.itmo.microservices.demo.bombardier.dto.RunTestRequest
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceSimulator
 import com.itmo.microservices.demo.bombardier.external.storage.ItemStorage
 import com.itmo.microservices.demo.bombardier.external.storage.OrderStorage
@@ -46,7 +47,6 @@ class BombardierController {
             ApiResponse(
                 description = "There is no such feature launch several flows for the service in parallel",
                 responseCode = "400",
-                content = [Content()]
             )
         ]
     )

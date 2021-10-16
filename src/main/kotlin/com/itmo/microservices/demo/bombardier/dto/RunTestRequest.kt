@@ -1,4 +1,4 @@
-package com.itmo.microservices.demo.bombardier.controller
+package com.itmo.microservices.demo.bombardier.dto
 
 data class RunTestRequest(
     val serviceName: String,
