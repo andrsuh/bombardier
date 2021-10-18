@@ -45,7 +45,7 @@ class TestController(
     fun startTestingForService(params: TestParameters) {
         val testingFlowCoroutine = SupervisorJob()
 
-        val v = runningTests.putIfAbsent(params.serviceName, TestingFlow(params,testingFlowCoroutine))
+        val v = runningTests.putIfAbsent(params.serviceName, TestingFlow(params, testingFlowCoroutine))
         if (v != null) {
             throw BadRequestException("There is no such feature launch several flows for the service in parallel :(")
         }
@@ -80,11 +80,11 @@ class TestController(
             return
         }
 
-        if (testingFlow.testParams.numberOfTests != null && testingFlow.testsStarted.get() > testingFlow.testParams.numberOfTests) {
+        val testNum = testingFlow.testsStarted.getAndIncrement() // data race :(
+        if (testingFlow.testParams.numberOfTests != null && testNum > testingFlow.testParams.numberOfTests) {
             log.info("All tests Started. No new tests")
             return
         }
-        val testNum = testingFlow.testsStarted.getAndIncrement() // data race :(
 
         log.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
