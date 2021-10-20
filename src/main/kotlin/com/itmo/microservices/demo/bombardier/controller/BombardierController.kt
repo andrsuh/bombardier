@@ -1,5 +1,6 @@
 package com.itmo.microservices.demo.bombardier.controller
 
+import com.itmo.microservices.demo.bombardier.dto.RunTestRequest
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceSimulator
 import com.itmo.microservices.demo.bombardier.external.storage.ItemStorage
 import com.itmo.microservices.demo.bombardier.external.storage.OrderStorage
@@ -37,6 +38,30 @@ class BombardierController {
 //            testApi.executor.shutdownNow()
         }
     }
+
+    @PostMapping("/run")
+    @Operation(
+        summary = "Run Test with params",
+        responses = [
+            ApiResponse(description = "OK", responseCode = "200"),
+            ApiResponse(
+                description = "There is no such feature launch several flows for the service in parallel",
+                responseCode = "400",
+            )
+        ]
+    )
+    fun runTest(@RequestBody request: RunTestRequest) {
+        testApi.startTestingForService(
+            TestParameters(
+                request.serviceName,
+                request.usersCount,
+                request.parallelProcCount,
+                request.testCount
+            )
+        )
+        // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()
+    }
+
 
     @PostMapping("/stop/{serviceName}")
     @Operation(
