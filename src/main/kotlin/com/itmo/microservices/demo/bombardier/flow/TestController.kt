@@ -1,6 +1,5 @@
 package com.itmo.microservices.demo.bombardier.flow
 
-import com.itmo.microservices.demo.bombardier.exception.BadRequestException
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceSimulator
 import com.itmo.microservices.demo.bombardier.external.storage.ItemStorage
 import com.itmo.microservices.demo.bombardier.external.storage.OrderStorage
@@ -146,19 +145,3 @@ data class TestParameters(
     val parallelProcessesNumber: Int,
     val numberOfTests: Int? = null
 )
-
-fun main() {
-    val externalServiceMock = ExternalServiceSimulator(OrderStorage(), UserStorage(), ItemStorage())
-    val userManagement = UserManagement(externalServiceMock)
-
-    val testApi = TestController(userManagement, externalServiceMock)
-
-    runBlocking {
-        testApi.startTestingForService(TestParameters("test-service", 1, 1, 5))
-        delay(30_000)
-
-        testApi.getTestingFlowForService("test-service").testFlowCoroutine.join()
-
-        testApi.executor.shutdownNow()
-    }
-}

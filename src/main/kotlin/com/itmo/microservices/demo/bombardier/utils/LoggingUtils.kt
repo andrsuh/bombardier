@@ -1,5 +1,6 @@
 package com.itmo.microservices.demo.bombardier.flow
 
+import com.itmo.microservices.commonlib.logging.EventLogger
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
