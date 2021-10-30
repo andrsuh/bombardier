@@ -1,11 +1,7 @@
 package com.itmo.microservices.demo.bombardier.flow
 
-import com.itmo.microservices.commonlib.annotations.InjectEventLogger
-import com.itmo.microservices.commonlib.logging.EventLogger
-import com.itmo.microservices.demo.bombardier.logging.TestNotableEvents
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
-import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.STOP
 import com.itmo.microservices.demo.common.exception.BadRequestException
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
@@ -20,11 +16,16 @@ import kotlin.coroutines.CoroutineContext
 @Service
 class TestController(
     private val userManagement: UserManagement,
-    private val serviceApi: ServiceApi
+    private val serviceApi: ServiceApi,
+    choosingUserAccountStage: ChoosingUserAccountStage,
+    orderCreationStage: OrderCreationStage,
+    orderCollectingStage: OrderCollectingStage,
+    orderFinalizingStage: OrderFinalizingStage,
+    orderSettingDeliverySlotsStage: OrderSettingDeliverySlotsStage,
+    orderChangeItemsAfterFinalizationStage: OrderChangeItemsAfterFinalizationStage,
+    orderPaymentStage: OrderPaymentStage,
+    orderDeliveryStage: OrderDeliveryStage
 ) {
-    @InjectEventLogger
-    private lateinit var eventLogger: EventLogger
-
     companion object {
         val log = LoggerFactory.getLogger(TestController::class.java)
     }
@@ -36,15 +37,16 @@ class TestController(
     private val coroutineScope = CoroutineScope(executor.asCoroutineDispatcher())
 
     private val testStages = listOf(
-        ChoosingUserAccountStage(userManagement).asErrorFree(),
-        OrderCreationStage(serviceApi).asErrorFree(),
-        OrderCollectingStage(serviceApi).asErrorFree(),
+        choosingUserAccountStage.asErrorFree(),
+        orderCreationStage.asErrorFree(),
+        orderCollectingStage.asErrorFree(),
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
-        OrderFinalizingStage(serviceApi).asErrorFree(),
-        OrderSettingDeliverySlotsStage(serviceApi).asErrorFree(),
-        OrderChangeItemsAfterFinalizationStage(serviceApi),
-        OrderPaymentStage(serviceApi).asRetryable().asErrorFree(),
-        OrderDeliveryStage(serviceApi).asErrorFree(),
+        orderFinalizingStage.asErrorFree(),
+        orderSettingDeliverySlotsStage.asErrorFree(),
+        orderChangeItemsAfterFinalizationStage,
+        orderPaymentStage.asRetryable().asErrorFree(),
+        orderCollectingStage.asErrorFree(),
+        orderDeliveryStage.asErrorFree()
     )
 
     fun startTestingForService(params: TestParameters) {
@@ -107,24 +109,10 @@ class TestController(
         log.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
-            testStages.forEachIndexed { idx, stage ->
-                val a = stage.run()
-                when {
-                    ((idx == testStages.size - 1 && a == CONTINUE) || a == STOP) -> {
-                        eventLogger.info(TestNotableEvents.I_TEST_SUCCESS, testNum)
-                        return@launch
-                    }
-
-                    (a != CONTINUE && a != STOP) -> {
-                        eventLogger.info(TestNotableEvents.I_TEST_FAIL, testNum)
-                        return@launch
-                    }
-
-                    a == CONTINUE -> Unit
-
-                    else -> {
-                        return@launch
-                    }
+            testStages.forEach { stage ->
+                when (stage.run()) {
+                    CONTINUE -> Unit
+                    else -> return@launch
                 }
             }
         }.invokeOnCompletion { th ->
