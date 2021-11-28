@@ -121,12 +121,10 @@ class TestController(
                 when {
                     i == testStages.size - 1 && !stageResult.iSFailState() || stageResult == STOP -> {
                         metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
-                        metrics.testOkInc()
                         return@launch
                     }
                     stageResult.iSFailState() -> {
                         metrics.testFailDurationRecord(System.currentTimeMillis() - testStartTime)
-                        metrics.testFailInc()
                         return@launch
                     }
                     stageResult == CONTINUE -> Unit

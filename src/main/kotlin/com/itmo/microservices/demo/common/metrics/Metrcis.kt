@@ -19,15 +19,6 @@ class Metrics {
         return m
     }
 
-    fun testOkInc() {
-        Counter.builder(testOkName).tags(*this.tags.toTypedArray())
-            .register(Metrics.globalRegistry).increment()
-    }
-
-    fun testFailInc() {
-        Metrics.counter(testFailName, *this.tags.toTypedArray()).increment()
-    }
-
     suspend fun stageDurationRecord(stage: TestStage): TestStage.TestContinuationType {
         val startTime = System.currentTimeMillis()
         val res = stage.run()
