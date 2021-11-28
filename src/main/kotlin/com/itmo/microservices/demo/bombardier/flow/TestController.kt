@@ -114,15 +114,18 @@ class TestController(
         log.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
+            val testStartTime = System.currentTimeMillis()
             testStages.forEachIndexed() { i, stage ->
                 val stageResult = metrics.withTags(metrics.stageLabel, stage.name())
                     .stageDurationRecord(stage)
                 when {
                     i == testStages.size - 1 && !stageResult.iSFailState() || stageResult == STOP -> {
+                        metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
                         metrics.testOkInc()
                         return@launch
                     }
                     stageResult.iSFailState() -> {
+                        metrics.testFailDurationRecord(System.currentTimeMillis() - testStartTime)
                         metrics.testFailInc()
                         return@launch
                     }

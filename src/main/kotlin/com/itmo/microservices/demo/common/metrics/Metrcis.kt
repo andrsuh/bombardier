@@ -4,6 +4,7 @@ import com.itmo.microservices.demo.bombardier.stages.TestStage
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Metrics
 import io.micrometer.core.instrument.Timer
+import kotlinx.coroutines.Job
 import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 
@@ -43,6 +44,17 @@ class Metrics {
 
     }
 
+    fun testOkDurationRecord(timeMs: Long) {
+        Timer.builder(testDurationOkName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
+            .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+    }
+
+    fun testFailDurationRecord(timeMs: Long) {
+        Timer.builder(testDurationFailName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
+            .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+    }
+
+
     fun externalMethodDurationRecord(f: Callable<okhttp3.Response>): okhttp3.Response {
         val startTime = System.currentTimeMillis()
         val resp = f.call()
@@ -59,6 +71,9 @@ class Metrics {
     private val testFailName = "test_counter_fail"
     private val stageDurationOkName = "stage_duration_ok"
     private val stageDurationFailName = "stage_duration_fail"
+    private val testDurationOkName = "test_duration_ok"
+    private val testDurationFailName = "test_duration_fail"
+
 
     val stageLabel = "stage"
     val serviceLabel = "service"
