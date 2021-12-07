@@ -14,6 +14,10 @@ import com.itmo.microservices.bombardierCore.bombardier.flow.TestEndedEvent
 import com.itmo.microservices.bombardierCore.bombardier.stages.TestStageSetKind
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.ApplicationContext
+import org.springframework.context.ApplicationEvent
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.ApplicationListener
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -65,6 +69,7 @@ class BombardierController(private val testApi: TestController, private val allT
         return RunningTestsResponse(currentTests)
     }
 
+    // Internal
     @PostMapping("/runForAll")
     fun runTestForAll() {
         allTestsRunner.start()
@@ -132,17 +137,25 @@ class AllTestsRunner(private val testApi: TestController) : ApplicationListener<
     private val descriptors = mutableListOf<ServiceDescriptor>()
     private val isRunning = AtomicBoolean(false)
 
+    @Autowired
+    private lateinit var applicationEventPublisher: ApplicationEventPublisher
+
+    @Autowired
+    lateinit var appContext: ApplicationContext
+
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     private class AlreadyRunningException : IllegalStateException("tests are already running, pls wait dumbass")
 
     override fun onApplicationEvent(e: TestEndedEvent) {
-        if (descriptors.size == 0) {
+        descriptors.remove(e.descriptor)
+        if (descriptors.isNotEmpty()) {
+            start(false)
+        }
+        else {
             isRunning.set(false)
             println("===================== END")
-            return
+            applicationEventPublisher.publishEvent(AllTestsFinishedEvent(this))
         }
-        start(false)
-        descriptors.remove(e.descriptor)
     }
 
     fun start(freshStart: Boolean = true) {
@@ -152,9 +165,10 @@ class AllTestsRunner(private val testApi: TestController) : ApplicationListener<
             }
             isRunning.set(true)
             descriptors.addAll(KnownServices.getInstance().get())
+            println("===================== TESTING START")
         }
         descriptors[0].let {
-            println("===================== ${it.name} / ${it.url}")
+            println("\n\n\n\n===================== ${it.name} / ${it.url}")
             start(it)
         }
     }
@@ -171,3 +185,5 @@ class AllTestsRunner(private val testApi: TestController) : ApplicationListener<
         )
     }
 }
+
+class AllTestsFinishedEvent(source: Any) : ApplicationEvent(source)

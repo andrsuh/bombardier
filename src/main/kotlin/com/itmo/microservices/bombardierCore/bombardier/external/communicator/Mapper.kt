@@ -5,8 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 class BombardierMappingExceptionWithUrl(url: String, content: String, originalException: Throwable) : Exception("""
-    URL: $url
-    $content
+        URL: $url
+$content
 """.trimIndent(), originalException)
 
 class BombardierMappingException(content: String, clazz: Class<*>, originalException: Throwable) : Exception(
@@ -20,7 +20,7 @@ class BombardierMappingException(content: String, clazz: Class<*>, originalExcep
         ${clazz.name}
         
         with fields
-        ${clazz.declaredFields.map { "${it.name}: ${it.type.name}" }.joinToString("\n")}
+${clazz.declaredFields.joinToString("\n") { "        ${it.name}: ${it.type.name}" }}
         
         Original exception message
         ${originalException.message}
