@@ -8,17 +8,25 @@ import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import com.itmo.microservices.demo.bombardier.dto.RunningTestsResponse
 import com.itmo.microservices.demo.bombardier.dto.toExtended
+import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
+import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceDescriptor
+import com.itmo.microservices.demo.bombardier.flow.TestEndedEvent
+import com.itmo.microservices.demo.bombardier.stages.TestStageSetKind
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationListener
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RestController
 @RequestMapping("/test")
-class BombardierController(private val testApi: TestController) {
+class BombardierController(private val testApi: TestController, private val allTestsRunner: AllTestsRunner) {
     companion object {
         val logger = LoggerFactory.getLogger(BombardierController::class.java)
     }
@@ -70,6 +78,11 @@ class BombardierController(private val testApi: TestController) {
         return RunningTestsResponse(currentTests)
     }
 
+    @PostMapping("/runForAll")
+    fun runTestForAll() {
+        allTestsRunner.start()
+    }
+
     @PostMapping("/run")
     @Operation(
         summary = "Run Test with params",
@@ -85,6 +98,7 @@ class BombardierController(private val testApi: TestController) {
         testApi.startTestingForService(
             TestParameters(
                 request.serviceName,
+                request.testStageSetKind,
                 request.usersCount,
                 request.parallelProcCount,
                 request.testCount
@@ -123,5 +137,50 @@ class BombardierController(private val testApi: TestController) {
         runBlocking {
             testApi.stopAllTests()
         }
+    }
+}
+
+@Component
+class AllTestsRunner(private val testApi: TestController) : ApplicationListener<TestEndedEvent> {
+    private val descriptors = mutableListOf<ServiceDescriptor>()
+    private val isRunning = AtomicBoolean(false)
+
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    private class AlreadyRunningException : IllegalStateException("tests are already running, pls wait dumbass")
+
+    override fun onApplicationEvent(e: TestEndedEvent) {
+        if (descriptors.size == 0) {
+            isRunning.set(false)
+            println("===================== END")
+            return
+        }
+        start(false)
+        descriptors.remove(e.descriptor)
+    }
+
+    fun start(freshStart: Boolean = true) {
+        if (freshStart) {
+            if (isRunning.get()) {
+                throw AlreadyRunningException()
+            }
+            isRunning.set(true)
+            descriptors.addAll(KnownServices.getInstance().get())
+        }
+        descriptors[0].let {
+            println("===================== ${it.name} / ${it.url}")
+            start(it)
+        }
+    }
+
+    private fun start(descriptor: ServiceDescriptor) {
+        testApi.startTestingForService(
+            TestParameters(
+                descriptor.name,
+                TestStageSetKind.DEFAULT,
+                1,
+                1,
+                1
+            )
+        )
     }
 }

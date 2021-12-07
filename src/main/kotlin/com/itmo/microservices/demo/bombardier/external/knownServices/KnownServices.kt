@@ -28,6 +28,8 @@ class KnownServices(vararg descriptors: ServiceDescriptor) {
         storage.addAll(descriptors)
     }
 
+    fun get(): List<ServiceDescriptor> = storage
+
     fun add(descriptor: ServiceDescriptor) {
         storage.add(descriptor)
     }

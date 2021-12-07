@@ -1,15 +1,22 @@
 package com.itmo.microservices.demo.bombardier.stages
 
+import com.fasterxml.jackson.annotation.JsonValue
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.flow.TestCtxKey
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.UserNotableEvents
 import kotlin.coroutines.coroutineContext
 
+enum class TestStageSetKind(@get:JsonValue val stringVal: String) {
+    DEFAULT("default"), DDOS("ddos")
+}
+
 interface TestStage {
     suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType
     suspend fun testCtx() = coroutineContext[TestCtxKey]!!
     fun name(): String = this::class.simpleName!!
+
+    fun stageSetKind() = TestStageSetKind.DEFAULT
 
     class RetryableTestStage(private val wrapped: TestStage) : TestStage {
         override suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType {
