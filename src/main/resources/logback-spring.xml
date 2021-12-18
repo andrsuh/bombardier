@@ -3,7 +3,7 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <springProfile name="dev">
+    <springProfile name="!dev">
         <springProperty name="service" source="spring.application.name"/>
         <springProperty name="logstashUrl" source="logstash.url"/>
 
@@ -25,11 +25,11 @@
         </root>
     </springProfile>
 
-<!--    <springProfile name="dev">-->
-<!--        <logger name="com.itmo" level="DEBUG"/>-->
+    <springProfile name="dev">
+        <logger name="com.itmo" level="DEBUG"/>
 
-<!--        <root level="INFO">-->
-<!--            <appender-ref ref="CONSOLE"/>-->
-<!--        </root>-->
-<!--    </springProfile>-->
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
 </configuration>
