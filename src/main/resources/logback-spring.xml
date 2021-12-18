@@ -25,11 +25,11 @@
         </root>
     </springProfile>
 
-<!--    <springProfile name="dev">-->
-<!--        <logger name="com.itmo" level="DEBUG"/>-->
+    <springProfile name="dev">
+        <logger name="com.itmo" level="DEBUG"/>
 
-<!--        <root level="INFO">-->
-<!--            <appender-ref ref="CONSOLE"/>-->
-<!--        </root>-->
-<!--    </springProfile>-->
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
 </configuration>
