@@ -105,10 +105,10 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
         return communicator.executeWithAuthAndDeserialize("getDeliverySlots","/delivery/slots?number=$number", session)
     }
 
-    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): BookingDto {
+    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration) {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("setDeliveryTime", "/orders/$orderId/delivery?slot=${slot.seconds}", session) {
+        communicator.executeWithAuth("setDeliveryTime", "/orders/$orderId/delivery?slot=${slot.seconds}", session) {
             post()
         }
     }

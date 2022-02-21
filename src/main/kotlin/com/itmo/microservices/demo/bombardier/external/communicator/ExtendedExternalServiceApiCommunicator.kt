@@ -20,12 +20,11 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
     ): T {
         val res = execute(method, url, builderContext)
         return try {
-            readValueBombardier(res.body()!!.string())
+            readValueBombardier(res.body().string())
         } catch (t: BombardierMappingException) {
             throw t.exceptionWithUrl("${res.request().method()} ${res.request().url()}")
         }
     }
-
 
     suspend inline fun <reified T> executeWithAuthAndDeserialize(
         method: String,
@@ -35,7 +34,7 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
     ): T {
         val res = executeWithAuth(method, url, credentials, builderContext)
         return try {
-            readValueBombardier(res.body()!!.string())
+            readValueBombardier(res.body().string())
         } catch (t: BombardierMappingException) {
             throw t.exceptionWithUrl("${res.request().method()} ${res.request().url()}")
         }
