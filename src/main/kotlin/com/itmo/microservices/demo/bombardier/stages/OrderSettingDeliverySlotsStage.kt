@@ -30,7 +30,7 @@ class OrderSettingDeliverySlotsStage : TestStage {
         ) // TODO: might be a better idea to provide different number here
 
         var deliverySlot = Duration.ZERO
-        repeat(Random.nextInt(4)) {
+        repeat(Random.nextInt(1, 4)) {
             deliverySlot = availableSlots.random()
             if (deliverySlot > Duration.ofSeconds(30)) {
                 deliverySlot = Duration.ofSeconds(Random.nextLong(1, 30))
