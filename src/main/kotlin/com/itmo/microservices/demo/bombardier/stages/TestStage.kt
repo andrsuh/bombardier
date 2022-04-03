@@ -1,10 +1,10 @@
 package com.itmo.microservices.demo.bombardier.stages
 
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
+import com.itmo.microservices.demo.bombardier.flow.TestController.Companion.metrics
 import com.itmo.microservices.demo.bombardier.flow.TestCtxKey
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.UserNotableEvents
-import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import com.itmo.microservices.demo.common.logging.testServiceFiledName
 import net.logstash.logback.marker.Markers.append
 import kotlin.coroutines.coroutineContext
@@ -56,6 +56,21 @@ interface TestStage {
         }
     }
 
+    class MetricRecordTestStage(override val wrapped: TestStage) : TestStage, DecoratingStage {
+        override suspend fun run(
+            userManagement: UserManagement,
+            externalServiceApi: ExternalServiceApi
+        ): TestContinuationType {
+            val startTime = System.currentTimeMillis()
+            val state = wrapped.run(userManagement, externalServiceApi)
+            val endTime = System.currentTimeMillis()
+
+            metrics.withTags(metrics.stageLabel, wrapped.name()).stageDurationRecord(endTime - startTime, state)
+            return state
+        }
+    }
+
+
     class TestStageFailedException(message: String) : IllegalStateException(message)
 
     enum class TestContinuationType {
@@ -75,3 +90,5 @@ interface TestStage {
 fun TestStage.asRetryable() = TestStage.RetryableTestStage(this)
 
 fun TestStage.asErrorFree() = TestStage.ExceptionFreeTestStage(this)
+
+fun TestStage.asMetricRecordable() = TestStage.MetricRecordTestStage(this)

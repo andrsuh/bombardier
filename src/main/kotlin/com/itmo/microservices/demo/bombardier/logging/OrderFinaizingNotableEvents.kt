@@ -5,6 +5,7 @@ import com.itmo.microservices.commonlib.logging.NotableEvent
 enum class OrderFinaizingNotableEvents(private val template: String) : NotableEvent {
 
     I_START_FINALIZING("Starting booking items stage for order {}"),
+    I_SKIP_FINALIZING("Skip finalizing for order {}"),
     E_BOOKING_LOG_RECORD_NOT_FOUND("Cannot find booking log record: booking id = {}; itemId = {}}; orderId = {}"),
     E_ORDER_HAS_FAIL_ITEMS("Order {} is booked, but there are failed items"),
     E_ITEMS_FAIL("Booking {} of order {} is marked as successful, but item {} is marked as {}"),

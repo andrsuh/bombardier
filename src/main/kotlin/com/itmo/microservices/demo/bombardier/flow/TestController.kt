@@ -11,7 +11,6 @@ import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
-import org.springframework.core.annotation.Order
 import org.springframework.stereotype.Service
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -44,17 +43,17 @@ class TestController(
     private val coroutineScope = CoroutineScope(executor.asCoroutineDispatcher())
 
     private val testStages = listOf(
-        choosingUserAccountStage.asErrorFree(),
-        orderCreationStage.asErrorFree(),
-        orderCollectingStage.asErrorFree(),
+        choosingUserAccountStage.asErrorFree().asMetricRecordable(),
+        orderCreationStage.asErrorFree().asMetricRecordable(),
+        orderCollectingStage.asErrorFree().asMetricRecordable(),
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
-        orderFinalizingStage.asErrorFree(),
-        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderChangeItemsAfterFinalizationStage.asErrorFree(),
-        orderFinalizingStage.asErrorFree(),
-        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderPaymentStage.asRetryable().asErrorFree(),
-        orderDeliveryStage.asErrorFree()
+        orderFinalizingStage.asErrorFree().asMetricRecordable(),
+        orderSettingDeliverySlotsStage.asErrorFree().asMetricRecordable(),
+        orderChangeItemsAfterFinalizationStage.asErrorFree().asMetricRecordable(),
+        orderFinalizingStage.asErrorFree().asMetricRecordable(),
+        orderSettingDeliverySlotsStage.asErrorFree().asMetricRecordable(),
+        orderPaymentStage.asRetryable().asErrorFree().asMetricRecordable(),
+        orderDeliveryStage.asErrorFree().asMetricRecordable()
     )
 
     fun startTestingForService(params: TestParameters) {
@@ -127,30 +126,9 @@ class TestController(
         logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
-            val testStartTime = System.currentTimeMillis()
-
-            var i = 0
-            while (true) {
-                val stage = testStages[i]
-                val stageResult = metrics
-                    .withTags(metrics.stageLabel, stage.name())
-                    .stageDurationRecord(stage, stuff.userManagement, stuff.api)
-
-                when {
-                    i == testStages.size - 1 && !stageResult.iSFailState() || stageResult == STOP -> {
-                        metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
-                        return@launch
-                    }
-                    stageResult.iSFailState() -> {
-                        metrics.testFailDurationRecord(System.currentTimeMillis() - testStartTime)
-                        return@launch
-                    }
-                    stageResult == CONTINUE -> {
-                        i++
-//                        if (stage is OrderChangeItemsAfterFinalizationStage && stage.testCtx().wasChangedAfterFinalization) {
-//                            i = 3
-//                        }
-                    }
+            testStages.forEach { stage ->
+                when (stage.run(stuff.userManagement, stuff.api)) {
+                    CONTINUE -> Unit
                     else -> return@launch
                 }
             }
@@ -173,15 +151,13 @@ data class TestContext(
     var orderId: UUID? = null,
     var paymentDetails: PaymentDetails = PaymentDetails(),
     var stagesComplete: MutableList<String> = mutableListOf(),
-    var stagesSkipped: MutableList<String> = mutableListOf()
+    var wasChangedAfterFinalization: Boolean = false,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
 
-    fun finalizationNeeded(stage: TestStage): Boolean {
-        return !stagesComplete.contains(stage::class.java.simpleName) ||
-                (stagesComplete.contains(OrderChangeItemsAfterFinalizationStage::class.java.simpleName) && !stagesSkipped.contains(OrderChangeItemsAfterFinalizationStage::class.java.simpleName))
-    }
+    fun finalizationNeeded() = OrderChangeItemsAfterFinalizationStage::class.java.simpleName !in stagesComplete
+            || wasChangedAfterFinalization
 }
 
 data class PaymentDetails(

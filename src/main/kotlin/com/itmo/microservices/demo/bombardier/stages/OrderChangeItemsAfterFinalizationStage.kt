@@ -25,10 +25,10 @@ class OrderChangeItemsAfterFinalizationStage : TestStage {
         val shouldRunStage = Random.nextBoolean()
         if (!shouldRunStage) {
             eventLogger.info(I_STATE_SKIPPED, testCtx().orderId)
-            testCtx().stagesSkipped.add(this::class.java.simpleName)
             return TestStage.TestContinuationType.CONTINUE
         }
 
+        testCtx().wasChangedAfterFinalization = true
         eventLogger.info(I_START_CHANGING_ITEMS, testCtx().orderId)
 
         val items = externalServiceApi.getAvailableItems(testCtx().userId!!)

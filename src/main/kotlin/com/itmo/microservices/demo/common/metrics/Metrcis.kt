@@ -19,24 +19,14 @@ class Metrics {
         return m
     }
 
-    suspend fun stageDurationRecord(
-        stage: TestStage,
-        userManagement: UserManagement,
-        externalServiceApi: ExternalServiceApi
-    ): TestStage.TestContinuationType {
-        val startTime = System.currentTimeMillis()
-        val res = stage.run(userManagement, externalServiceApi)
-        val endTime = System.currentTimeMillis()
-        if (res.iSFailState()) {
+     fun stageDurationRecord(timeMs: Long, state: TestStage.TestContinuationType) {
+        if (state.iSFailState()) {
             Timer.builder(stageDurationFailName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
-                .register(Metrics.globalRegistry).record(endTime - startTime, TimeUnit.MILLISECONDS)
+                .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
         } else {
             Timer.builder(stageDurationOkName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
-                .register(Metrics.globalRegistry).record(endTime - startTime, TimeUnit.MILLISECONDS)
+                .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
         }
-
-        return res
-
     }
 
     fun testOkDurationRecord(timeMs: Long) {
