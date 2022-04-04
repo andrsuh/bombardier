@@ -11,6 +11,7 @@ import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import org.springframework.core.annotation.Order
 import org.springframework.stereotype.Service
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -126,10 +127,20 @@ class TestController(
         logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
+            val testStartTime = System.currentTimeMillis()
             testStages.forEach { stage ->
-                when (stage.run(stuff.userManagement, stuff.api)) {
-                    CONTINUE -> Unit
-                    else -> return@launch
+                val stageResult = stage.run(stuff.userManagement, stuff.api)
+                when {
+
+                    stage.isFinal() && !stageResult.iSFailState() || stageResult == STOP -> {
+                        metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
+                        return@launch
+                    }
+                    stageResult.iSFailState() -> {
+                        metrics.testFailDurationRecord(System.currentTimeMillis() - testStartTime)
+                        return@launch
+                    }
+                    stageResult == CONTINUE -> Unit
                 }
             }
         }.invokeOnCompletion { th ->

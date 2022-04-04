@@ -13,6 +13,7 @@ interface TestStage {
     suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType
     suspend fun testCtx() = coroutineContext[TestCtxKey]!!
     fun name(): String = this::class.simpleName!!
+    fun isFinal() = false
 
     class RetryableTestStage(private val wrapped: TestStage) : TestStage {
         override suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType {
@@ -28,6 +29,10 @@ interface TestStage {
 
         override fun name(): String {
             return wrapped.name()
+        }
+
+        override fun isFinal(): Boolean {
+            return wrapped.isFinal()
         }
     }
 
@@ -54,6 +59,10 @@ interface TestStage {
         override fun name(): String {
             return wrapped.name()
         }
+
+        override fun isFinal(): Boolean {
+            return wrapped.isFinal()
+        }
     }
 
     class MetricRecordTestStage(override val wrapped: TestStage) : TestStage, DecoratingStage {
@@ -65,11 +74,19 @@ interface TestStage {
             val state = wrapped.run(userManagement, externalServiceApi)
             val endTime = System.currentTimeMillis()
 
-            metrics.withTags(metrics.stageLabel, wrapped.name()).stageDurationRecord(endTime - startTime, state)
+            metrics.withTags(metrics.stageLabel, wrapped.name(), metrics.serviceLabel, testCtx().serviceName)
+                .stageDurationRecord(endTime - startTime, state)
             return state
         }
-    }
 
+        override fun isFinal(): Boolean {
+            return wrapped.isFinal()
+        }
+
+        override fun name(): String {
+            return wrapped.name()
+        }
+    }
 
     class TestStageFailedException(message: String) : IllegalStateException(message)
 

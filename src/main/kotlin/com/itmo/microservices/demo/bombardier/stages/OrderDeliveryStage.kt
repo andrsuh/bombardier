@@ -22,6 +22,10 @@ class OrderDeliveryStage : TestStage {
 
     lateinit var eventLogger: EventLoggerWrapper
 
+    override fun isFinal(): Boolean {
+        return true
+    }
+
     override suspend fun run(
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
