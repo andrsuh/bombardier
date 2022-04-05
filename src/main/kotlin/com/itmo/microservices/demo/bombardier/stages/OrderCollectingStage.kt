@@ -33,7 +33,7 @@ class OrderCollectingStage : TestStage {
         repeat(Random.nextInt(1, min(20, items.size))) {
             val itemToAdd = items.random()
             val amount = Random.nextInt(1, min(20, itemToAdd.amount))
-            itemIds[itemToAdd.id] = (itemIds[itemToAdd.id] ?: 0) + amount
+            itemIds[itemToAdd.id] = amount
 
             externalServiceApi.putItemToOrder(testCtx().userId!!, testCtx().orderId!!, itemToAdd.id, amount)
         }
