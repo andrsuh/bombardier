@@ -9,11 +9,12 @@ import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
 import org.springframework.http.HttpStatus
 import java.time.Duration
 import java.util.*
+import java.util.concurrent.Executors
 import java.util.concurrent.ForkJoinPool
 class UserNotAuthenticatedException(username: String) : Exception(username)
 
 class RealExternalService(override val descriptor: ServiceDescriptor, private val userStorage: UserStorage, props: BombardierProperties) : ExternalServiceApi {
-    private val executorService = ForkJoinPool()
+    private val executorService = Executors.newFixedThreadPool(16)
     private val communicator = UserAwareExternalServiceApiCommunicator(descriptor, executorService, props)
 
     suspend fun getUserSession(id: UUID): ExternalServiceToken {
@@ -81,8 +82,7 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
             communicator.executeWithAuth("putItemToOrder", "/orders/$orderId/items/$itemId?amount=$amount", session) {
                 put()
             }
-        }
-        catch (e: InvalidExternalServiceResponseException) {
+        } catch (e: InvalidExternalServiceResponseException) {
             if (e.code != badCode) {
                 throw e
             }
@@ -106,10 +106,10 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
         return communicator.executeWithAuthAndDeserialize("getDeliverySlots","/delivery/slots?number=$number", session)
     }
 
-    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration) {
+    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): UUID {
         val session = getUserSession(userId)
 
-        communicator.executeWithAuth("setDeliveryTime", "/orders/$orderId/delivery?slot=${slot.seconds}", session) {
+        return communicator.executeWithAuthAndDeserialize("setDeliveryTime", "/orders/$orderId/delivery?slot=${slot.seconds}", session) {
             post()
         }
     }

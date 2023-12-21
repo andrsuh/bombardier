@@ -3,14 +3,15 @@ package com.itmo.microservices.demo.bombardier.stages
 import com.itmo.microservices.commonlib.annotations.InjectEventLogger
 import com.itmo.microservices.commonlib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.BookingStatus
-import com.itmo.microservices.demo.bombardier.flow.CoroutineLoggingFactory
-import com.itmo.microservices.demo.bombardier.external.OrderStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
+import com.itmo.microservices.demo.bombardier.external.OrderStatus
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderCommonNotableEvents
 import com.itmo.microservices.demo.bombardier.logging.OrderFinaizingNotableEvents.*
+import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
+import java.util.concurrent.TimeUnit
 
 @Component
 class OrderFinalizingStage : TestStage {
@@ -29,19 +30,35 @@ class OrderFinalizingStage : TestStage {
         eventLogger.info(I_START_FINALIZING, testCtx().orderId)
 
         if (!testCtx().finalizationNeeded()) {
-            return TestStage.TestContinuationType.CONTINUE // todo logvinenko add log
+            eventLogger.info(I_NO_FINALIZING_REQUIRED, testCtx().orderId)
+            return TestStage.TestContinuationType.CONTINUE
         }
 
         val orderStateBeforeFinalizing = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
         val bookingResult = externalServiceApi.bookOrder(testCtx().userId!!, testCtx().orderId!!)
 
-        val orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+        var orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+
+        ConditionAwaiter.awaitAtMost(5, TimeUnit.SECONDS)
+            .condition {
+                orderStateAfterBooking.status != OrderStatus.OrderBookingInProgress.also {
+                    orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+                }
+            }.onFailure {
+                eventLogger.error(
+                    OrderCommonNotableEvents.E_BOOKING_STILL_IN_PROGRESS,
+                    orderStateAfterBooking.id,
+                    orderStateAfterBooking.status,
+                )
+                throw TestStage.TestStageFailedException("Exception instead of silently fail")
+            }.startWaiting()
 
         val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
-        for (item in orderStateAfterBooking.itemsMap.keys) {
-            if (bookingRecords.none { it.itemId == item.id }) {
-                eventLogger.error(E_BOOKING_LOG_RECORD_NOT_FOUND, bookingResult.id, item.id, testCtx().orderId)
+        for (id in orderStateAfterBooking.itemsMap.keys) {
+            if (bookingRecords.none { it.itemId == id }) {
+                eventLogger.error(E_BOOKING_LOG_RECORD_NOT_FOUND, bookingResult.id, id, testCtx().orderId)
+
                 return TestStage.TestContinuationType.FAIL
             }
         }
@@ -53,14 +70,14 @@ class OrderFinalizingStage : TestStage {
                     return TestStage.TestContinuationType.FAIL
                 }
 
-                for (item in orderStateAfterBooking.itemsMap.keys) {
-                    val itemRecord = bookingRecords.firstOrNull { it.itemId == item.id }
+                for (id in orderStateAfterBooking.itemsMap.keys) {
+                    val itemRecord = bookingRecords.firstOrNull { it.itemId == id }
                     if (itemRecord == null || itemRecord.status != BookingStatus.SUCCESS) {
                         eventLogger.error(
                             E_ITEMS_FAIL,
                             bookingResult.id,
                             testCtx().orderId,
-                            item.id,
+                            id,
                             itemRecord?.status
                         )
                         return TestStage.TestContinuationType.FAIL
@@ -84,8 +101,8 @@ class OrderFinalizingStage : TestStage {
                     return TestStage.TestContinuationType.FAIL
                 }
 
-                val failedList = orderStateAfterBooking.itemsMap.filter { it.key.id in failed }
-                    .map { Triple(it.key.id, it.key.title, it.value) }
+                val failedList = orderStateAfterBooking.itemsMap.filter { it.key in failed }
+                    .map { (it.key to it.value) }
 
                 eventLogger.info(I_SUCCESS_VALIDATE_NOT_BOOKED, testCtx().orderId, failedList)
                 return TestStage.TestContinuationType.STOP

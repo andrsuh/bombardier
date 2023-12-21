@@ -42,7 +42,14 @@ class ExternalServiceSimulator(
     }
 
     override suspend fun createOrder(userId: UUID): Order { // todo sukhoa userId not used
-        return orderStorage.create(Order(id = UUID.randomUUID(), timeCreated = System.currentTimeMillis(), itemsMap = mutableMapOf(), paymentHistory = mutableListOf()))
+        return orderStorage.create(
+            Order(
+                id = UUID.randomUUID(),
+                timeCreated = System.currentTimeMillis(),
+                itemsMap = mutableMapOf(),
+                paymentHistory = mutableListOf()
+            )
+        )
     }
 
     override suspend fun getOrder(userId: UUID, orderId: UUID): Order {
@@ -61,10 +68,11 @@ class ExternalServiceSimulator(
         }
     }
 
-    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration) {
+    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): UUID {
         orderStorage.getAndUpdate(orderId) { order ->
             order.copy(deliveryDuration = slot)
         }
+        return UUID.randomUUID() // todo sukhoa shit
     }
 
     override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
@@ -100,7 +108,7 @@ class ExternalServiceSimulator(
             orderStorage.getAndUpdate(orderId = orderId) { order ->
                 order.copy(
                     status = if (paymentStatus.status == PaymentStatus.SUCCESS)
-                        OrderStatus.OrderPayed(paymentTime = paymentStatus.timestamp)
+                        OrderStatus.OrderPayed
                     else
                         order.status,
                     paymentHistory = order.paymentHistory + listOf(paymentStatus)
@@ -163,7 +171,7 @@ class ExternalServiceSimulator(
                             }
                         },
                         orderId = orderId,
-                        paymentTransactionId = UUID.randomUUID(),
+                        paymentId = UUID.randomUUID(),
                         timestamp = System.currentTimeMillis()
                     )
                 )
@@ -190,26 +198,26 @@ class ExternalServiceSimulator(
         }
     }
 
-    private suspend fun bookItems(items: Map<OrderItem, Int>): BookingDto {
+    private suspend fun bookItems(items: Map<UUID, Int>): BookingDto {
         val bookingId = UUID.randomUUID()
 
         val successfullyBooked = mutableSetOf<UUID>()
         val failedToBook = mutableSetOf<UUID>()
 
-        for ((item, amount) in items) {
-            itemStorage.getAndUpdate(itemId = item.id) { existingItem ->
+        for ((id, amount) in items) {
+            itemStorage.getAndUpdate(itemId = id) { existingItem ->
                 val bookingStatus =
                     if (existingItem.amount - amount > 0) BookingStatus.SUCCESS else BookingStatus.FAILED
 
                 when (bookingStatus) {
                     BookingStatus.SUCCESS -> {
-                        itemStorage.bookingRecords.add(BookingLogRecord(bookingId, item.id, bookingStatus, amount))
-                        successfullyBooked.add(item.id)
+                        itemStorage.bookingRecords.add(BookingLogRecord(bookingId, id, bookingStatus, amount))
+                        successfullyBooked.add(id)
                         existingItem.copy(amount = existingItem.amount - amount)
                     }
                     BookingStatus.FAILED -> {
-                        itemStorage.bookingRecords.add(BookingLogRecord(bookingId, item.id, bookingStatus, amount))
-                        failedToBook.add(item.id)
+                        itemStorage.bookingRecords.add(BookingLogRecord(bookingId, id, bookingStatus, amount))
+                        failedToBook.add(id)
                         existingItem
                     }
                 }
@@ -219,9 +227,9 @@ class ExternalServiceSimulator(
         // rollback in case booking failed
         if (failedToBook.isNotEmpty()) {
             items
-                .filter { it.key.id in successfullyBooked }
-                .forEach { (item, refundAmount) ->
-                    itemStorage.getAndUpdate(item.id) { existing ->
+                .filter { it.key in successfullyBooked }
+                .forEach { (id, refundAmount) ->
+                    itemStorage.getAndUpdate(id) { existing ->
                         existing.copy(amount = existing.amount + refundAmount)
                     }
                 }
@@ -242,8 +250,7 @@ class ExternalServiceSimulator(
         orderStorage.getAndUpdate(orderId = orderId) { order ->
             val item = itemStorage.get(itemId)
             order.copy(
-                itemsMap = order.itemsMap.filterKeys { it.id != itemId }
-                        + (OrderItem(id = item.id, title = item.title, price = item.price) to amount),
+                itemsMap = order.itemsMap.filterKeys { it != itemId } + (item.id to amount),
                 status = if (order.status == OrderStatus.OrderBooked) OrderStatus.OrderCollecting else order.status
             )
         }

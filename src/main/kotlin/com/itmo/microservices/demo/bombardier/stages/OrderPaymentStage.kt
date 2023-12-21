@@ -3,15 +3,16 @@ package com.itmo.microservices.demo.bombardier.stages
 import com.itmo.microservices.commonlib.annotations.InjectEventLogger
 import com.itmo.microservices.commonlib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.FinancialOperationType
-import com.itmo.microservices.demo.bombardier.external.OrderStatus
 import com.itmo.microservices.demo.bombardier.external.PaymentStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
+import com.itmo.microservices.demo.bombardier.external.OrderStatus
 import com.itmo.microservices.demo.bombardier.flow.*
 import com.itmo.microservices.demo.bombardier.logging.OrderCommonNotableEvents
 import com.itmo.microservices.demo.bombardier.logging.OrderPaymentNotableEvents.*
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -39,15 +40,35 @@ class OrderPaymentStage : TestStage {
         val paymentSubmissionDto = externalServiceApi.payOrder(
             testCtx().userId!!,
             testCtx().orderId!!
-        ) // todo sukhoa add payment details to test ctx
+        )
 
-        ConditionAwaiter.awaitAtMost(6, TimeUnit.SECONDS)
+        eventLog.info(I_STARTED_PAYMENT, testCtx().orderId!!, paymentSubmissionDto.timestamp, paymentSubmissionDto.transactionId)
+
+        val paymentSubmissionTimeout = 6L
+        ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(2))
+            .condition {
+                val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+                order.status == OrderStatus.OrderPaymentInProgress || order.status == OrderStatus.OrderPayed
+            }
+            .onFailure {
+                eventLogger.error(E_SUBMISSION_TIMEOUT_EXCEEDED, order.id, paymentSubmissionTimeout)
+                if (it != null) {
+                    throw it
+                }
+                throw TestStage.TestStageFailedException("Exception instead of silently fail")
+            }.startWaiting()
+
+        val startWaitingPayment = System.currentTimeMillis()
+        eventLog.info(I_START_WAITING_FOR_PAYMENT_RESULT, testCtx().orderId!!, paymentSubmissionDto.transactionId, startWaitingPayment - paymentSubmissionDto.timestamp)
+
+        val paymentTimeout = 80L
+        ConditionAwaiter.awaitAtMost(paymentTimeout, TimeUnit.SECONDS, Duration.ofSeconds(4))
             .condition {
                 externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
                     .any { it.transactionId == paymentSubmissionDto.transactionId }
             }
             .onFailure {
-                eventLogger.error(E_TIMEOUT_EXCEEDED, order.id)
+                eventLogger.error(E_PAYMENT_TIMEOUT_EXCEEDED, order.id, paymentTimeout)
                 if (it != null) {
                     throw it
                 }
@@ -63,7 +84,7 @@ class OrderPaymentStage : TestStage {
                     .condition {
                         val userChargedRecord =
                             externalServiceApi.userFinancialHistory(testCtx().userId!!, testCtx().orderId!!)
-                                .find { it.paymentTransactionId == paymentSubmissionDto.transactionId }
+                                .find { it.paymentId == paymentSubmissionDto.transactionId }
 
                         userChargedRecord?.type == FinancialOperationType.WITHDRAW
                     }
@@ -76,19 +97,19 @@ class OrderPaymentStage : TestStage {
                     }.startWaiting()
 
                 paymentDetails.finishedAt = System.currentTimeMillis()
-                eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentDetails.attempt)
+                eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
 
                 return TestStage.TestContinuationType.CONTINUE
             }
             PaymentStatus.FAILED -> { // todo sukhoa check order status hasn't changed and user ne charged
-                if (paymentDetails.attempt < 10) {
-                    eventLogger.info(I_PAYMENT_RETRY, order.id, paymentDetails.attempt)
-                    return TestStage.TestContinuationType.RETRY
-                } else {
-                    eventLogger.error(E_LAST_ATTEMPT_FAIL, order.id, paymentDetails.attempt)
+//                if (paymentDetails.attempt < 10) {
+//                    eventLogger.info(I_PAYMENT_RETRY, order.id, paymentDetails.attempt)
+//                    return TestStage.TestContinuationType.RETRY
+//                } else {
+                    eventLogger.error(E_PAYMENT_FAILED, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
                     paymentDetails.failedAt = System.currentTimeMillis()
                     return TestStage.TestContinuationType.FAIL
-                }
+//                }
             } // todo sukhoa not enough money
             else -> {
                 eventLogger.error(

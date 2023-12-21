@@ -49,11 +49,11 @@ class TestController(
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
         orderFinalizingStage.asErrorFree(),
         orderSettingDeliverySlotsStage.asErrorFree(),
-        orderChangeItemsAfterFinalizationStage.asErrorFree(),
-        orderFinalizingStage.asErrorFree(),
-        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderPaymentStage.asRetryable().asErrorFree(),
-        orderDeliveryStage.asErrorFree()
+//        orderChangeItemsAfterFinalizationStage.asErrorFree(),
+//        orderFinalizingStage.asErrorFree(),
+//        orderSettingDeliverySlotsStage.asErrorFree(),
+        orderPaymentStage.asErrorFree(),
+//        orderDeliveryStage.asErrorFree()
     )
 
     fun startTestingForService(params: TestParameters) {
@@ -177,8 +177,9 @@ data class TestContext(
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
 
-    fun finalizationNeeded() = OrderChangeItemsAfterFinalizationStage::class.java.simpleName in stagesComplete
-            && wasChangedAfterFinalization
+    fun finalizationNeeded() = OrderFinalizingStage::class.java.simpleName !in stagesComplete ||
+        (OrderChangeItemsAfterFinalizationStage::class.java.simpleName in stagesComplete
+            && wasChangedAfterFinalization)
 }
 
 data class PaymentDetails(

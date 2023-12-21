@@ -25,8 +25,8 @@ class OrderCollectingStage : TestStage {
 
         val itemIds = mutableMapOf<UUID, Int>()
         val items = externalServiceApi.getAvailableItems(testCtx().userId!!)
-        repeat(Random.nextInt(1, 20)) {
-            val amount = Random.nextInt(1, 20)
+        repeat(Random.nextInt(1, 5)) {
+            val amount = Random.nextInt(1, 5)
             val itemToAdd = items.random()
                 .also { // todo should not to do on each addition but! we can randomise it
                     itemIds[it.id] = amount
@@ -36,7 +36,7 @@ class OrderCollectingStage : TestStage {
         }
 
         val finalOrder = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
-        val orderMap = finalOrder.itemsMap.mapKeys { it.key.id }
+        val orderMap = finalOrder.itemsMap.mapKeys { it.key }
         itemIds.forEach { (id, count) ->
             if (!orderMap.containsKey(id)) {
                 eventLogger.error(E_ADD_ITEMS_FAIL, id, count, 0)

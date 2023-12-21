@@ -1,14 +1,16 @@
 package com.itmo.microservices.demo.bombardier.utils
 
 import kotlinx.coroutines.delay
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 class ConditionAwaiter(
     private val period: Long,
-    private val unit: TimeUnit
+    private val unit: TimeUnit,
+    private val pollingPeriod: Duration = Duration.ofMillis(3000),
 ) {
     companion object {
-        fun awaitAtMost(period: Long, unit: TimeUnit) = ConditionAwaiter(period, unit)
+        fun awaitAtMost(period: Long, unit: TimeUnit, pollingPeriod: Duration = Duration.ofMillis(500)) = ConditionAwaiter(period, unit, pollingPeriod)
     }
 
     private var condition: (suspend () -> Boolean)? = null
@@ -41,7 +43,7 @@ class ConditionAwaiter(
                 failureClosure.invoke(th)
                 return
             }
-            delay(50)
+            delay(pollingPeriod.toMillis())
         }
         failureClosure.invoke(null)
     }

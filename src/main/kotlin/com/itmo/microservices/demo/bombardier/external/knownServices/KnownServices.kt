@@ -23,7 +23,7 @@ data class ServiceWithApiAndAdditional(val api: ExternalServiceApi, val userMana
 class KnownServices(
     private val props: BombardierProperties
 ) {
-    private val storage = mutableListOf<ServiceDescriptor>()
+    val storage = mutableListOf<ServiceDescriptor>()
     private val apis = mutableMapOf<ServiceDescriptor, ServiceWithApiAndAdditional>() // todo make concurrent
 
     init {

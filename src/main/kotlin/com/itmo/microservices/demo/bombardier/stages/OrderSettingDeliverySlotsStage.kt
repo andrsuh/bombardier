@@ -3,11 +3,14 @@ package com.itmo.microservices.demo.bombardier.stages
 import com.itmo.microservices.commonlib.annotations.InjectEventLogger
 import com.itmo.microservices.commonlib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
+import com.itmo.microservices.demo.bombardier.external.OrderStatus
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderSettingsDeliveryNotableEvents.*
+import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 @Component
@@ -25,9 +28,6 @@ class OrderSettingDeliverySlotsStage : TestStage {
 
         eventLogger.info(I_CHOOSE_SLOT, testCtx().orderId)
 
-        if (!testCtx().finalizationNeeded()) {
-            return TestStage.TestContinuationType.CONTINUE // todo logvinenko add log
-        }
 
         val availableSlots = externalServiceApi.getDeliverySlots(
             testCtx().userId!!,
@@ -40,13 +40,17 @@ class OrderSettingDeliverySlotsStage : TestStage {
             if (deliverySlot > Duration.ofSeconds(30)) {
                 deliverySlot = Duration.ofSeconds(Random.nextLong(1, 30))
             }
-            externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
+            val deliveryId = externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
 
-            val resultSlot = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).deliveryDuration
-            if (resultSlot != deliverySlot) {
-                eventLogger.error(E_CHOOSE_SLOT_FAIL, deliverySlot, resultSlot)
-                return TestStage.TestContinuationType.FAIL
-            }
+            ConditionAwaiter.awaitAtMost(16, TimeUnit.SECONDS, Duration.ofSeconds(2)).condition {
+                val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+                val deliveryIdInOrder = order.deliveryId
+                deliveryIdInOrder == deliveryId && order.status == OrderStatus.OrderDeliverySet
+            }.onFailure {
+                eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, "?")
+//                TestStage.TestContinuationType.FAIL
+                throw TestStage.TestStageFailedException("Exception instead of silently fail")
+            }.startWaiting()
         }
 
         eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot.seconds, testCtx().orderId)

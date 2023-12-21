@@ -52,6 +52,7 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
 
     private val client = OkHttpClient.Builder().run {
         dispatcher(Dispatcher(executor))
+        protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
         callTimeout(TIMEOUT)
         build()
     }
@@ -61,7 +62,6 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
             "name" to username,
             "password" to password
         )
-
     }.run {
         val resp = body().string()
         mapper.readValue(resp, TokenResponse::class.java).toExternalServiceToken(descriptor.url)
@@ -85,7 +85,9 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
         val metrics = Metrics().withTags("service", this.descriptor.name, "method", method)
         return suspendCoroutine {
             val req = requestBuilder.build()
-            logger.info("sending request to ${req.method()} ${req.url().url()}")
+            if (req.method() != "GET") {
+                logger.info("sending request to ${req.method()} ${req.url().url()}")
+            }
             val startTime = System.currentTimeMillis()
 
             client.newCall(req).enqueue(object : Callback {

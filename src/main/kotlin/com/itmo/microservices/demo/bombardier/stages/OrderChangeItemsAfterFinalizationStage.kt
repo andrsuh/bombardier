@@ -42,7 +42,7 @@ class OrderChangeItemsAfterFinalizationStage : TestStage {
             ConditionAwaiter.awaitAtMost(3, TimeUnit.SECONDS)
                 .condition {
                     val theOrder = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
-                    theOrder.itemsMap.any { it.key.id == itemToAdd.id && it.value == amount }
+                    theOrder.itemsMap.any { it.key == itemToAdd.id && it.value == amount }
                             && theOrder.status == OrderStatus.OrderCollecting
                 }
                 .onFailure {

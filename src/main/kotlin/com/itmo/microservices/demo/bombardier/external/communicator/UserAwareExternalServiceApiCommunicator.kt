@@ -29,6 +29,7 @@ class UserAwareExternalServiceApiCommunicator(descriptor: ServiceDescriptor, ex:
 
         val auth = super.authenticate(username, password)
         usersMap[username] = auth
+        logger.info("User $username auth set $auth")
         return auth
     }
 

@@ -3,7 +3,8 @@ package com.itmo.microservices.demo.bombardier.logging
 import com.itmo.microservices.commonlib.logging.NotableEvent
 
 enum class OrderCommonNotableEvents(private val template: String) : NotableEvent {
-    E_ILLEGAL_ORDER_TRANSITION("Illegal transition for order {} from {} to {}");
+    E_ILLEGAL_ORDER_TRANSITION("Illegal transition for order {} from {} to {}"),
+    E_BOOKING_STILL_IN_PROGRESS("Booking finished but order {} still in status {}");
 
     override fun getTemplate(): String {
         return template

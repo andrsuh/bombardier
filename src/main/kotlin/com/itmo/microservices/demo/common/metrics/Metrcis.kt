@@ -51,7 +51,6 @@ class Metrics {
 
 
     fun externalMethodDurationRecord(timeMs: Long) {
-
         Timer.builder(externalCallDurationName).publishPercentiles(0.95)
             .tags(*this.tags.toTypedArray())
             .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)

@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.KeyDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.itmo.microservices.demo.bombardier.external.OrderStatus.OrderCollecting
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
+import com.itmo.microservices.demo.bombardier.external.OrderStatus.OrderCollecting
 import java.time.Duration
 import java.util.*
 
@@ -36,8 +36,12 @@ interface ExternalServiceApi {
     ): Boolean // todo sukhoa consider using add instead of put
 
     suspend fun bookOrder(userId: UUID, orderId: UUID): BookingDto //синхронный
-    suspend fun getDeliverySlots(userId: UUID, number: Int): List<Duration> // todo sukhoa in future we should get the Dto with slots. Slot has it's lifetime and should be active within it.
-    suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration)
+    suspend fun getDeliverySlots(
+        userId: UUID,
+        number: Int
+    ): List<Duration> // todo sukhoa in future we should get the Dto with slots. Slot has it's lifetime and should be active within it.
+
+    suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): UUID
     suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto
 
     suspend fun simulateDelivery(userId: UUID, orderId: UUID)
@@ -80,7 +84,7 @@ data class UserAccountFinancialLogRecord(
     val type: FinancialOperationType,
     val amount: Int,
     val orderId: UUID,
-    val paymentTransactionId: UUID,
+    val paymentId: UUID,
     val timestamp: Long
 )
 
@@ -120,9 +124,12 @@ sealed class OrderStatus {
     object OrderCollecting : OrderStatus()
     object OrderDiscarded : OrderStatus()
     object OrderBooked : OrderStatus()
-    object OrderRefund: OrderStatus()
+    object OrderBookingInProgress : OrderStatus()
+    object OrderDeliverySet : OrderStatus()
+    object OrderRefund : OrderStatus()
     object OrderCompleted : OrderStatus()
-    class OrderPayed(val paymentTime: Long) : OrderStatus()
+    object OrderPaymentInProgress : OrderStatus()
+    object OrderPayed : OrderStatus()
     class OrderInDelivery(val deliveryStartTime: Long) : OrderStatus()
     class OrderDelivered(val deliveryStartTime: Long, val deliveryFinishTime: Long) : OrderStatus()
     class OrderFailed(reason: String, previousStatus: OrderStatus) : OrderStatus()
@@ -131,10 +138,13 @@ sealed class OrderStatus {
 class OrderStatusDeserializer : JsonDeserializer<OrderStatus>() {
     override fun deserialize(p0: JsonParser, p1: DeserializationContext): OrderStatus {
         return when (p0.text) {
-            "COLLECTING" -> OrderStatus.OrderCollecting
+            "COLLECTING" -> OrderCollecting
+            "BOOKING_IN_PROGRESS" -> OrderStatus.OrderBookingInProgress
             "DISCARD" -> OrderStatus.OrderDiscarded
             "BOOKED" -> OrderStatus.OrderBooked
-            "PAID" -> OrderStatus.OrderPayed(0)
+            "DELIVERY_SET" -> OrderStatus.OrderDeliverySet
+            "PAYMENT_IN_PROGRESS" -> OrderStatus.OrderPaymentInProgress
+            "PAYED" -> OrderStatus.OrderPayed
             "SHIPPING" -> OrderStatus.OrderInDelivery(0)
             "REFUND" -> OrderStatus.OrderRefund
             "COMPLETED" -> OrderStatus.OrderDelivered(0, System.currentTimeMillis())
@@ -149,9 +159,9 @@ data class Order(
     val timeCreated: Long,
     @JsonDeserialize(using = OrderStatusDeserializer::class)
     val status: OrderStatus = OrderCollecting,
-    @JsonDeserialize(keyUsing = OrderKeyDeserializer::class)
-    val itemsMap: Map<OrderItem, Int>, //
-    val deliveryDuration: Duration? = null, //
+    val itemsMap: Map<UUID, Int>,
+    val deliveryDuration: Duration? = null,
+    val deliveryId: UUID? = null,
     val paymentHistory: List<PaymentLogRecord>
 )
 
