@@ -9,6 +9,7 @@ import com.itmo.microservices.demo.bombardier.exceptions.InvalidServiceUrlExcept
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.bombardier.flow.TestController
 import com.itmo.microservices.demo.bombardier.flow.TestParameters
+import io.swagger.annotations.ApiParam
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -86,6 +87,24 @@ class BombardierController(
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()
     }
 
+    @PostMapping("/runDefault")
+    @Operation(
+        summary = "Run Test with default params",
+        responses = [
+            ApiResponse(description = "OK", responseCode = "200"),
+            ApiResponse(
+                description = "There is no such feature launch several flows for the service in parallel",
+                responseCode = "400",
+            )
+        ],
+    )
+    fun runTestDefault(@ApiParam(value = "service name", example = "p11") @RequestParam serviceName: String) {
+        testApi.startTestingForService(
+            TestParameters(serviceName, 2, 1, 1)
+        )
+        // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()
+    }
+
 
     @PostMapping("/stop/{serviceName}")
     @Operation(
@@ -117,6 +136,15 @@ class BombardierController(
             testApi.stopAllTests()
         }
     }
+
+    @GetMapping("allServices", produces = ["application/json"])
+    @Operation(
+        summary = "Get all services in bombarider system",
+        responses = [
+            ApiResponse(description = "OK", responseCode = "200"),
+        ]
+    )
+    fun getAllServices() = services.all().associate { it.name to it.url.toString() }
 
     @PostMapping("/newService")
     @Operation(

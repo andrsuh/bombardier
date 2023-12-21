@@ -18,3 +18,16 @@ bombardier:
       url: "http://service-304:8080"
 ```
 (`по умолчанию` = указано в application.yml, кастомизация через профили, подробности [тут](https://www.baeldung.com/spring-profiles))
+
+## Docker compose
+
+To run Bombardier in microservices infra:
+```shell
+cp docker-compose.override.{example,}.yml
+docker-compose up -d
+```
+
+To run specific version use environment variable `BOMBARDIER_VERSION`:
+```shell
+BOMBARDIER_VERSION=3.2.5-SNAPSHOT docker compose up -d
+```

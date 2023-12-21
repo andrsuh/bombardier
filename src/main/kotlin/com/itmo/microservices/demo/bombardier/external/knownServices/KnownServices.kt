@@ -16,8 +16,12 @@ class ServiceDescriptorNotFoundException(name: String) : Exception("Descriptor f
 @ResponseStatus(HttpStatus.BAD_REQUEST)
 class ServiceDescriptorExistsException() : Exception("descriptor already exists")
 
+class KnownServicesOverflow : Exception("too much services")
+
 data class ServiceWithApiAndAdditional(val api: ExternalServiceApi, val userManagement: UserManagement)
 
+
+private const val THRESHOLD_STORAGE = 100
 
 @Service
 class KnownServices(
@@ -30,7 +34,12 @@ class KnownServices(
         storage.addAll(props.getDescriptors())
     }
 
+    fun all(): List<ServiceDescriptor> = storage
+
     fun add(descriptor: ServiceDescriptor) {
+        if (storage.size > THRESHOLD_STORAGE) {
+            throw KnownServicesOverflow()
+        }
         if (findByName(descriptor.name) != null) {
             throw ServiceDescriptorExistsException()
         }

@@ -16,6 +16,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
+import java.io.InterruptedIOException
 
 class CachedResponseBody internal constructor(_body: ResponseBody) {
     private val string: String
@@ -100,7 +101,12 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
                     metrics.withTags("code", response.code().toString()).externalMethodDurationRecord(endTime-startTime)
 
                     if (HttpStatus.Series.resolve(response.code()) == HttpStatus.Series.SUCCESSFUL) {
-                        it.resume(TrimmedResponse.fromResponse(response))
+                        try {
+                            it.resume(TrimmedResponse.fromResponse(response))
+                        }
+                        catch (t: Throwable) {
+                            it.resumeWithException(t)
+                        }
                         return
                     }
                     it.resumeWithException(

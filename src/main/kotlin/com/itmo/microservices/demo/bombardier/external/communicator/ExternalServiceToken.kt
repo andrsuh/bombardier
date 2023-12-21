@@ -34,7 +34,7 @@ class ExternalServiceToken(val service: URL, accessToken: String, refreshToken: 
     var refreshToken: String
         get() {
             lastAccessedAt = Instant.now().epochSecond
-            //if (isRefreshTokenExpired()) throw TokenHasExpiredException()
+            if (isRefreshTokenExpired()) throw TokenHasExpiredException()
             return _refreshToken
         }
         set(value) {

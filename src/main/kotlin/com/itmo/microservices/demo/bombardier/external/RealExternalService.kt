@@ -69,7 +69,7 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
     override suspend fun getItems(userId: UUID, available: Boolean): List<CatalogItem> {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("getItems","/items?available=$available", session)
+        return communicator.executeWithAuthAndDeserialize("getItems","/items?available=$available&size=150", session)
     }
 
     override suspend fun putItemToOrder(userId: UUID, orderId: UUID, itemId: UUID, amount: Int): Boolean {
@@ -135,7 +135,7 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
         return communicator.executeWithAuthAndDeserialize("getBookingHistory","/_internal/bookingHistory/$bookingId", session)
     }
 
-    override suspend fun deliveryLog(userId: UUID, orderId: UUID): DeliveryInfoRecord {
+    override suspend fun deliveryLog(userId: UUID, orderId: UUID): List<DeliveryInfoRecord> {
         val session = getUserSession(userId)
 
         return communicator.executeWithAuthAndDeserialize("deliveryLog","/_internal/deliveryLog/$orderId", session)

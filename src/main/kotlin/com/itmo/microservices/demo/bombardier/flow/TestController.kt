@@ -11,6 +11,7 @@ import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import org.springframework.core.annotation.Order
 import org.springframework.stereotype.Service
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -43,16 +44,16 @@ class TestController(
     private val coroutineScope = CoroutineScope(executor.asCoroutineDispatcher())
 
     private val testStages = listOf(
-        choosingUserAccountStage.asErrorFree(),
-        orderCreationStage.asErrorFree(),
-        orderCollectingStage.asErrorFree(),
+        choosingUserAccountStage.asErrorFree().asMetricRecordable(),
+        orderCreationStage.asErrorFree().asMetricRecordable(),
+        orderCollectingStage.asErrorFree().asMetricRecordable(),
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
-        orderFinalizingStage.asErrorFree(),
-        orderSettingDeliverySlotsStage.asErrorFree(),
+        orderFinalizingStage.asErrorFree().asMetricRecordable(),
+        orderSettingDeliverySlotsStage.asErrorFree().asMetricRecordable(),
 //        orderChangeItemsAfterFinalizationStage.asErrorFree(),
 //        orderFinalizingStage.asErrorFree(),
 //        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderPaymentStage.asErrorFree(),
+        orderPaymentStage.asErrorFree().asMetricRecordable(),
 //        orderDeliveryStage.asErrorFree()
     )
 
@@ -127,16 +128,11 @@ class TestController(
 
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
             val testStartTime = System.currentTimeMillis()
-
-            var i = 0
-            while (true) {
-                val stage = testStages[i]
-                val stageResult = metrics
-                    .withTags(metrics.stageLabel, stage.name())
-                    .stageDurationRecord(stage, stuff.userManagement, stuff.api)
-
+            testStages.forEach { stage ->
+                val stageResult = stage.run(stuff.userManagement, stuff.api)
                 when {
-                    i == testStages.size - 1 && !stageResult.iSFailState() || stageResult == STOP -> {
+
+                    stage.isFinal() && !stageResult.iSFailState() || stageResult == STOP -> {
                         metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
                         return@launch
                     }
@@ -144,13 +140,7 @@ class TestController(
                         metrics.testFailDurationRecord(System.currentTimeMillis() - testStartTime)
                         return@launch
                     }
-                    stageResult == CONTINUE -> {
-                        i++
-//                        if (stage is OrderChangeItemsAfterFinalizationStage && stage.testCtx().wasChangedAfterFinalization) {
-//                            i = 3
-//                        }
-                    }
-                    else -> return@launch
+                    stageResult == CONTINUE -> Unit
                 }
             }
         }.invokeOnCompletion { th ->

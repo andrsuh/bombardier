@@ -261,7 +261,7 @@ class ExternalServiceSimulator(
         return itemStorage.getBookingRecordsById(bookingId)
     }
 
-    override suspend fun deliveryLog(userId: UUID, orderId: UUID): DeliveryInfoRecord {
-        return deliveryLog[orderId]!!
+    override suspend fun deliveryLog(userId: UUID, orderId: UUID): List<DeliveryInfoRecord> {
+        return listOf(deliveryLog[orderId]!!)
     }
 }

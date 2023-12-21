@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  bombardier:
+    image: ghcr.io/andrsuh/bombardier:${BOMBARDIER_VERSION:-latest}
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
