@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.annotation.PostConstruct
 import kotlin.random.Random
 
@@ -25,12 +26,15 @@ class ExternalSystemController(
         const val winDefault = 8
     }
 
+    private val invoices = ConcurrentHashMap<String, AtomicInteger>()
+
     private val accounts = ConcurrentHashMap<String, Account>()
 
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
             arrayOf(1, 2).forEach {
+                val basePrice = 10
                 val accName = "default-${it}"
                 accounts["${service.name}-$accName"] = Account(
                     service.name,
@@ -38,7 +42,8 @@ class ExternalSystemController(
                     null,
                     slo = Slo(),
                     rateLimiter = RateLimiter(1, TimeUnit.SECONDS),
-                    window = OngoingWindow(8)
+                    window = OngoingWindow(8),
+                    price = basePrice * it
                 )
             }
         }
@@ -59,7 +64,8 @@ class ExternalSystemController(
             request.callbackPath,
             slo = Slo(request.slo.upperLimitInvocationMillis),
             rateLimiter = rLimiter,
-            window = window
+            window = window,
+            price = request.price
         )
     }
 
@@ -67,7 +73,8 @@ class ExternalSystemController(
         val serviceName: String,
         val accountName: String,
         val callbackPath: String?,
-        val slo: SloDto = SloDto()
+        val slo: SloDto = SloDto(),
+        val price: Int = 10,
     )
 
     data class SloDto(
@@ -84,6 +91,7 @@ class ExternalSystemController(
         val slo: Slo = Slo(),
         val rateLimiter: RateLimiter,
         val window: OngoingWindow,
+        val price: Int,
     )
 
 
@@ -98,6 +106,12 @@ class ExternalSystemController(
         @RequestParam transactionId: String
     ): ResponseEntity<Response> {
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
+        val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.let {
+            it.addAndGet(account.price)
+        }
+
+        logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
+
         if (!account.rateLimiter.tick()) {
             return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
         }
