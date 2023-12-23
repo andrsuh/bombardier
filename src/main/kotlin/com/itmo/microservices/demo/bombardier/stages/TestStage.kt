@@ -21,6 +21,8 @@ interface TestStage {
                 when (val state = wrapped.run(userManagement, externalServiceApi)) {
                     TestContinuationType.CONTINUE -> return state
                     TestContinuationType.FAIL -> return state
+                    TestContinuationType.ERROR -> return state
+                    TestContinuationType.STOP -> return state
                     TestContinuationType.RETRY -> Unit
                 }
             }

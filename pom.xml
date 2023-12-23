@@ -19,7 +19,7 @@
     <properties>
         <github>andrsuh/bombardier</github>
         <java.version>11</java.version>
-        <kotlin.version>1.5.21</kotlin.version>
+        <kotlin.version>1.6.0</kotlin.version>
         <guava.version>30.1.1-jre</guava.version>
         <jjwt.version>0.9.1</jjwt.version>
         <common-lib.version>0.8.0-SNAPSHOT</common-lib.version>
@@ -45,7 +45,7 @@
         <dependency>
             <groupId>org.jetbrains.kotlinx</groupId>
             <artifactId>kotlinx-coroutines-reactor</artifactId>
-            <version>1.7.1</version>
+            <version>1.6.0</version>
         </dependency>
 
         <dependency>
