@@ -76,7 +76,7 @@ jobs:
 
       - uses: s4u/maven-settings-action@v2.6.0
         with:
-          servers: '[{"id": "common-lib", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}"}]'
+          servers: '[{"id": "tiny-event-sourcing", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}"}, {"id": "common-lib", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}"}]'
 
       - name: Build with Maven
         id: build
