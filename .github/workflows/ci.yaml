@@ -81,7 +81,7 @@ jobs:
       - name: Build with Maven
         id: build
         run: |
-#          mvn -B package -s settings.xml
+          mvn -B package
           JAR_PATH=$(mvn help:evaluate -Dexpression=project.build.finalName -q -DforceStdout)
           echo ::set-output name=jar::${JAR_PATH}.jar
 
