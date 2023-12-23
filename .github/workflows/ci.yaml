@@ -74,10 +74,14 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }},enable=${{ endsWith(github.ref, 'main') }}
             type=raw,value=latest,enable=${{ endsWith(github.ref, 'main') }}
 
+      - uses: s4u/maven-settings-action@v2.6.0
+        with:
+          servers: '[{"id": "common-lib", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}"}]'
+
       - name: Build with Maven
         id: build
         run: |
-          mvn -B package -s settings.xml
+#          mvn -B package -s settings.xml
           JAR_PATH=$(mvn help:evaluate -Dexpression=project.build.finalName -q -DforceStdout)
           echo ::set-output name=jar::${JAR_PATH}.jar
 
