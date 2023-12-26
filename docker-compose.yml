@@ -35,3 +35,4 @@ services:
 
 networks:
   external_network:
+    driver: bridge
