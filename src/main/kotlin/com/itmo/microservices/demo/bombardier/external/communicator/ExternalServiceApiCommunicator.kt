@@ -144,7 +144,7 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
             val emptyBody = RequestBody.create(null, ByteArray(0))
         }
 
-        fun _url(url: String) = super.url("$baseUrl/$url")
+        fun _url(url: String) = super.url("$baseUrl$url")
 
         /**
          * Don't call this method in builder
