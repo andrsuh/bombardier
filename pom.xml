@@ -72,7 +72,9 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
 <!--            <scope>compile</scope>-->
-            <optional>true</optional>
+<!--            <scope>runtime</scope>-->
+            <version>2.5.15</version>
+<!--            <optional>true</optional>-->
         </dependency>
 
         <dependency>
@@ -193,14 +195,14 @@
                                 <sourceDir>src/main/kotlin</sourceDir>
                                 <sourceDir>src/main/java</sourceDir>
                             </sourceDirs>
-<!--                            <annotationProcessorPaths>-->
-<!--                                &lt;!&ndash; Specify your annotation processors here. &ndash;&gt;-->
-<!--                                <annotationProcessorPath>-->
-<!--                                    <groupId>org.springframework.boot</groupId>-->
-<!--                                    <artifactId>spring-boot-configuration-processor</artifactId>-->
-<!--                                    <version>2.5.3</version>-->
-<!--                                </annotationProcessorPath>-->
-<!--                            </annotationProcessorPaths>-->
+                            <annotationProcessorPaths>
+                                <!-- Specify your annotation processors here. -->
+                                <annotationProcessorPath>
+                                    <groupId>org.springframework.boot</groupId>
+                                    <artifactId>spring-boot-configuration-processor</artifactId>
+                                    <version>2.5.15</version>
+                                </annotationProcessorPath>
+                            </annotationProcessorPaths>
                         </configuration>
                     </execution>
                 </executions>
