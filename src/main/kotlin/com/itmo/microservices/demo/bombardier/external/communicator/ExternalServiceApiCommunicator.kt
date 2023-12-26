@@ -5,7 +5,6 @@ import com.itmo.microservices.demo.bombardier.ServiceDescriptor
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import okhttp3.*
 import org.slf4j.LoggerFactory
-import org.springframework.boot.configurationprocessor.json.JSONObject
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import java.io.IOException
@@ -43,7 +42,7 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
     companion object {
         private val TIMEOUT = Duration.ofSeconds(20)
         private val JSON = MediaType.parse("application/json; charset=utf-8")
-        fun JSONObject.toRequestBody() = RequestBody.create(JSON, this.toString())
+//        fun JSONObject.toRequestBody() = RequestBody.create(JSON, this.toString())
     }
 
     val logger = LoggerWrapper(
@@ -159,14 +158,15 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
         @Deprecated("Not allowed to use")
         override fun url(url: String) = throw IllegalStateException("Not allowed to call this function")
 
-        fun jsonPost(ctx: JSONObject.() -> Unit) {
-            val obj = JSONObject()
-            ctx(obj)
-            post(obj.toRequestBody())
-        }
+//        fun jsonPost(ctx: JSONObject.() -> Unit) {
+//            val obj = JSONObject()
+//            ctx(obj)
+//            post(obj.toRequestBody())
+//        }
 
         fun jsonPost(vararg items: Pair<String, String>) {
-            post(JSONObject().withItems(*items).toRequestBody())
+//            post(JSONObject().withItems(*items).toRequestBody())
+            post(RequestBody.create(JSON, mapper.writeValueAsString(items.toMap())));
         }
 
         fun post() {
