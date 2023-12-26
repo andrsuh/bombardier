@@ -12,7 +12,7 @@
 
     <groupId>com.itmo.microservices</groupId>
     <artifactId>bombardier</artifactId>
-    <version>4.0.0</version>
+    <version>4.0.1</version>
     <name>bombardier</name>
     <description>Trying to kill your PPO projects</description>
 
@@ -193,14 +193,14 @@
                                 <sourceDir>src/main/kotlin</sourceDir>
                                 <sourceDir>src/main/java</sourceDir>
                             </sourceDirs>
-                            <annotationProcessorPaths>
-                                <!-- Specify your annotation processors here. -->
-                                <annotationProcessorPath>
-                                    <groupId>org.springframework.boot</groupId>
-                                    <artifactId>spring-boot-configuration-processor</artifactId>
-                                    <version>2.5.3</version>
-                                </annotationProcessorPath>
-                            </annotationProcessorPaths>
+<!--                            <annotationProcessorPaths>-->
+<!--                                &lt;!&ndash; Specify your annotation processors here. &ndash;&gt;-->
+<!--                                <annotationProcessorPath>-->
+<!--                                    <groupId>org.springframework.boot</groupId>-->
+<!--                                    <artifactId>spring-boot-configuration-processor</artifactId>-->
+<!--                                    <version>2.5.3</version>-->
+<!--                                </annotationProcessorPath>-->
+<!--                            </annotationProcessorPaths>-->
                         </configuration>
                     </execution>
                 </executions>
