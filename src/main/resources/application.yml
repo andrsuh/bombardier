@@ -36,4 +36,4 @@ bombardier:
   auth-enabled: false
   teams:
     - name: "test"
-      url: "${TEST_SERVICE_IP:http://127.0.0.1}:8081"
+      url: "http://${TEST_SERVICE_IP:127.0.0.1}:8081"
