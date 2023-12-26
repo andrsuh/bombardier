@@ -14,6 +14,6 @@ fun main(args: Array<String>) {
     }
     runApplication<DemoServiceApplication>(*args)
 
-    runBlocking {
-    }
+//    runBlocking {
+//    }
 }

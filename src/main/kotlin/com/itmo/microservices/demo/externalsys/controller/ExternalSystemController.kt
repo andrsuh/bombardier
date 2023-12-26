@@ -41,8 +41,8 @@ class ExternalSystemController(
                     "default",
                     null,
                     slo = Slo(),
-                    rateLimiter = RateLimiter(1, TimeUnit.SECONDS),
-                    window = OngoingWindow(8),
+                    rateLimiter = RateLimiter(5, TimeUnit.SECONDS),
+                    window = OngoingWindow(16),
                     price = basePrice * it
                 )
             }
@@ -96,7 +96,7 @@ class ExternalSystemController(
 
 
     data class Slo(
-        val upperLimitInvocationMillis: Long = 10_000,
+        val upperLimitInvocationMillis: Long = 5_000,
     )
 
     @PostMapping("/process")

@@ -29,5 +29,5 @@ docker-compose up -d
 
 To run specific version use environment variable `BOMBARDIER_VERSION`:
 ```shell
-BOMBARDIER_VERSION=3.2.5-SNAPSHOT docker compose up -d
+BOMBARDIER_VERSION=4.0.0 docker-compose up -d
 ```

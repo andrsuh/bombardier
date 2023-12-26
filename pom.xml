@@ -12,7 +12,7 @@
 
     <groupId>com.itmo.microservices</groupId>
     <artifactId>bombardier</artifactId>
-    <version>3.6.8-SNAPSHOT</version>
+    <version>4.0.0</version>
     <name>bombardier</name>
     <description>Trying to kill your PPO projects</description>
 
@@ -71,7 +71,7 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
-            <scope>compile</scope>
+<!--            <scope>compile</scope>-->
             <optional>true</optional>
         </dependency>
 
