@@ -144,7 +144,7 @@ class BombardierController(
             ApiResponse(description = "OK", responseCode = "200"),
         ]
     )
-    fun getAllServices() = services.all().associate { it.name to it.url.toString() }
+    fun getAllServices() = services.all().associate { it.name to it.url }
 
     @PostMapping("/newService")
     @Operation(
@@ -158,11 +158,11 @@ class BombardierController(
         ]
     )
     fun newService(@RequestBody request: NewServiceRequest) {
-        val url = try {
-            URL(request.url)
-        } catch (t: Throwable) {
-            throw InvalidServiceUrlException()
-        }
-        services.add(ServiceDescriptor(request.name, url))
+//        val url = try {
+//            URL(request.url)
+//        } catch (t: Throwable) {
+//            throw InvalidServiceUrlException()
+//        }
+        services.add(ServiceDescriptor(request.name, request.url))
     }
 }

@@ -8,7 +8,7 @@ import java.time.LocalDateTime
 const val tokenLifetimeSec = 15 * 60
 const val refreshTokenLifetimeSec = 30 * 24 * 60 * 60
 
-class ExternalServiceToken(val service: URL, accessToken: String, refreshToken: String) {
+class ExternalServiceToken(val service: String, accessToken: String, refreshToken: String) {
     var lastAccessedAt = Instant.now().epochSecond
         private set
 

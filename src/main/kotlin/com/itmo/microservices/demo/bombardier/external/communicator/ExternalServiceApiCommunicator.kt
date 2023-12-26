@@ -139,12 +139,12 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
     }
 
 
-    class CustomRequestBuilder(private val baseUrl: URL) : Request.Builder() {
+    class CustomRequestBuilder(private val baseUrl: String) : Request.Builder() {
         companion object {
             val emptyBody = RequestBody.create(null, ByteArray(0))
         }
 
-        fun _url(url: String) = super.url(URL(baseUrl, url))
+        fun _url(url: String) = super.url("$baseUrl/$url")
 
         /**
          * Don't call this method in builder

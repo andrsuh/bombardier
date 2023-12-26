@@ -10,6 +10,8 @@ services:
       - external_network
     environment:
       - TEST_SERVICE_IP=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   prometheus:
     image: quay.io/prometheus/prometheus:v2.32.0

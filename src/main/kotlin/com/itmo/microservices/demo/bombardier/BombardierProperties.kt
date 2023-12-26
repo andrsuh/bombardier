@@ -10,7 +10,7 @@ import kotlin.properties.Delegates
 class BombardierProperties {
     var teams by Delegates.notNull<List<Map<String, String>>>()
     var authEnabled by Delegates.notNull<Boolean>()
-    fun getDescriptors() = teams.map { ServiceDescriptor(it["name"]!!, URL(it["url"]!!)) }
+    fun getDescriptors() = teams.map { ServiceDescriptor(it["name"]!!, it["url"]!!) }
 }
 
-data class ServiceDescriptor(var name: String, var url: URL)
+data class ServiceDescriptor(var name: String, var url: String)
