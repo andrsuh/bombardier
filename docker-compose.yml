@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     networks:
       - external_network
+    environment:
+      - TEST_SERVICE_IP=host.docker.internal
 
   prometheus:
     image: quay.io/prometheus/prometheus:v2.32.0
