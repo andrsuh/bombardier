@@ -131,7 +131,6 @@ class TestController(
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
                 when {
-
                     stage.isFinal() && !stageResult.iSFailState() || stageResult == STOP -> {
                         metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
                         return@launch

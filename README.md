@@ -29,5 +29,18 @@ docker-compose up -d
 
 To run specific version use environment variable `BOMBARDIER_VERSION`:
 ```shell
-BOMBARDIER_VERSION=4.0.0 docker-compose up -d
+BOMBARDIER_VERSION=4.0.8 docker-compose up -d
+```
+To checkout the logs of the service
+```shell
+docker-compose logs bombardier 
+```
+To check the metrics of the service
+```http request
+http://localhost:1234/actuator/prometheus
+```
+
+To see and call HTTP API of the service:
+```http request
+http://localhost:1234/swagger-ui/index.html#/bombardier-controller
 ```
