@@ -382,13 +382,14 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "none"
+                  "mode": "normal"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
                 }
               },
               "mappings": [],
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -431,10 +432,10 @@
                 "uid": "PBFA97CFB590B2093"
               },
               "editorMode": "code",
-              "expr": "sum(rate(payment_finished_total{service=~\"$service\"}[1m])) by (service, outcome)",
+              "expr": "sum(increase(payment_finished_total{service=~\"$service\"}[30s])) by (service, outcome, failReason)",
               "hide": false,
               "instant": false,
-              "legendFormat": "{{outcome}}",
+              "legendFormat": "{{outcome}} - {{failReason}}",
               "range": true,
               "refId": "B"
             }
@@ -557,7 +558,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 2
+            "y": 18
           },
           "id": 2,
           "options": {
@@ -690,7 +691,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 2
+            "y": 18
           },
           "id": 13,
           "options": {
@@ -699,7 +700,7 @@
                 "lastNotNull"
               ],
               "displayMode": "table",
-              "placement": "bottom",
+              "placement": "right",
               "showLegend": true
             },
             "tooltip": {
@@ -715,7 +716,7 @@
               },
               "editorMode": "code",
               "exemplar": true,
-              "expr": "increase(test_duration_seconds_count{service=~\"$service\", testOutcome!~\"ERROR|FAIL\"}[1m]) / (increase(test_duration_seconds_count{service=~\"$service\", testOutcome!~\"ERROR|FAIL\"}[1m]) + increase(test_duration_seconds_count{service=~\"$service\", testOutcome!~\"ERROR|FAIL\"}[1m]))",
+              "expr": "(sum by(service)(increase(test_duration_seconds_count{service=~\"$service\", testOutcome=~\"SUCCESS\"}[1m]))) / (sum by(service) (increase(test_duration_seconds_count{service=~\"$service\", testOutcome=~\".*\"}[1m])))",
               "interval": "",
               "legendFormat": "{{service}} - success",
               "range": true,
@@ -787,7 +788,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 10
+            "y": 26
           },
           "id": 23,
           "options": {
@@ -946,15 +947,13 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 3
+            "y": 35
           },
           "id": 7,
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "mean",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "right",
@@ -1080,15 +1079,13 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 3
+            "y": 35
           },
           "id": 8,
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "mean",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "right",
@@ -1178,15 +1175,13 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 11
+            "y": 43
           },
           "id": 5,
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "mean",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "right",
@@ -1288,15 +1283,13 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 11
+            "y": 43
           },
           "id": 6,
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "mean",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "right",
@@ -1414,7 +1407,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -1461,7 +1455,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 19
+            "y": 4
           },
           "id": 3,
           "options": {
@@ -1548,7 +1542,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -1595,7 +1590,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 19
+            "y": 4
           },
           "id": 14,
           "options": {
@@ -1682,7 +1677,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -1729,7 +1725,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 27
+            "y": 12
           },
           "id": 15,
           "options": {
@@ -2031,13 +2027,13 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Services statistic",
   "uid": "KVr-Vmpnz",
-  "version": 43,
+  "version": 51,
   "weekStart": ""
 }

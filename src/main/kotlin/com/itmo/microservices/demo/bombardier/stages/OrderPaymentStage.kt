@@ -107,7 +107,7 @@ class OrderPaymentStage : TestStage {
                             throw it
                         }
                         Metrics
-                            .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "SUCCESS", paymentFailureReason to "WITHDRAW_NOT_FOUND")
+                            .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "WITHDRAW_NOT_FOUND")
                             .paymentFinished()
                         throw TestStage.TestStageFailedException("Exception instead of silently fail")
                     }.startWaiting()
@@ -117,7 +117,7 @@ class OrderPaymentStage : TestStage {
                     .paymentsAmountRecord(paymentLogRecord.amount)
 
                 Metrics
-                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "SUCCESS")
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "SUCCESS", paymentFailureReason to "")
                     .paymentFinished()
 
                 paymentDetails.finishedAt = System.currentTimeMillis()
