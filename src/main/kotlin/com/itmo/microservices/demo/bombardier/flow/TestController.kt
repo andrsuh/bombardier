@@ -140,11 +140,11 @@ class TestController(
         }.invokeOnCompletion { th ->
             if (th != null) {
                 logger.error("Unexpected fail in test", th)
-            }
 
-            Metrics
-                .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "UNEXPECTED_FAIL")
-                .testDurationRecord(System.currentTimeMillis() - testStartTime)
+                Metrics
+                    .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "UNEXPECTED_FAIL")
+                    .testDurationRecord(System.currentTimeMillis() - testStartTime)
+            }
 
             logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
             launchNewTestFlow(descriptor, stuff)

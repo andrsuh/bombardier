@@ -42,8 +42,8 @@ class ExternalSystemController(
                     "default",
                     null,
                     slo = Slo(),
-                    rateLimiter = RateLimiter(5, TimeUnit.SECONDS),
-                    window = OngoingWindow(16),
+                    rateLimiter = RateLimiter(1, TimeUnit.SECONDS),
+                    window = OngoingWindow(8),
                     price = basePrice * it
                 )
             }

@@ -57,8 +57,8 @@
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "bars",
-                "fillOpacity": 0,
-                "gradientMode": "opacity",
+                "fillOpacity": 41,
+                "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
                   "tooltip": false,
@@ -75,7 +75,7 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "none"
+                  "mode": "normal"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
@@ -345,6 +345,102 @@
           ],
           "title": "Income / Expenses",
           "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 23,
+                "gradientMode": "hue",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 9
+          },
+          "id": 29,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(rate(payment_finished_total{service=~\"$service\"}[1m])) by (service, outcome)",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "{{outcome}}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Payments outcome",
+          "type": "timeseries"
         }
       ],
       "title": "General",
@@ -467,8 +563,7 @@
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "right",
@@ -487,25 +582,11 @@
               },
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(increase(test_duration_seconds_count{service=~\"$service\", testOutcome!~\"ERROR|FAIL\"}[1m])) by (service)",
+              "expr": "sum(increase(test_duration_seconds_count{service=~\"$service\"}[1m])) by (service, testOutcome)",
               "interval": "",
-              "legendFormat": "{{service}} - success",
+              "legendFormat": "{{service}} - {{testOutcome}}",
               "range": true,
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "editorMode": "code",
-              "exemplar": true,
-              "expr": "sum(increase(test_duration_seconds_count{service=~\"$service\", testOutcome=~\"ERROR|FAIL\"}[1m])) by (service)",
-              "hide": false,
-              "interval": "",
-              "legendFormat": "{{service}} - fail",
-              "range": true,
-              "refId": "B"
             }
           ],
           "title": "Tests per minute",
@@ -615,9 +696,7 @@
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "min",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "bottom",
@@ -665,9 +744,9 @@
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
+                "drawStyle": "bars",
+                "fillOpacity": 37,
+                "gradientMode": "hue",
                 "hideFrom": {
                   "legend": false,
                   "tooltip": false,
@@ -684,7 +763,7 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "none"
+                  "mode": "normal"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
@@ -714,9 +793,7 @@
           "options": {
             "legend": {
               "calcs": [
-                "lastNotNull",
-                "mean",
-                "max"
+                "lastNotNull"
               ],
               "displayMode": "table",
               "placement": "right",
@@ -735,25 +812,11 @@
               },
               "editorMode": "code",
               "exemplar": true,
-              "expr": "test_duration_seconds{service=~\"$service\", testOutcome!~\"ERROR|FAIL\", quantile=\"0.95\"} ",
+              "expr": "test_duration_seconds{service=~\"$service\", quantile=\"0.95\"} ",
               "interval": "",
-              "legendFormat": "{{service}} - success",
+              "legendFormat": "{{service}} - {{testOutcome}}",
               "range": true,
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "editorMode": "code",
-              "exemplar": true,
-              "expr": "test_duration_seconds{service=~\"$service\", testOutcome=~\"ERROR|FAIL\", quantile=\"0.95\"}",
-              "hide": false,
-              "interval": "",
-              "legendFormat": "{{service}} - fail",
-              "range": true,
-              "refId": "B"
             }
           ],
           "title": "Test duration quantile 95",
@@ -1975,6 +2038,6 @@
   "timezone": "",
   "title": "Services statistic",
   "uid": "KVr-Vmpnz",
-  "version": 34,
+  "version": 43,
   "weekStart": ""
 }
