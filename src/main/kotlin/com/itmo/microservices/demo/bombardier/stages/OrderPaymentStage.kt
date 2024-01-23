@@ -11,6 +11,7 @@ import com.itmo.microservices.demo.bombardier.logging.OrderCommonNotableEvents
 import com.itmo.microservices.demo.bombardier.logging.OrderPaymentNotableEvents.*
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
+import com.itmo.microservices.demo.common.metrics.Metrics
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.concurrent.TimeUnit
@@ -95,6 +96,10 @@ class OrderPaymentStage : TestStage {
                         }
                         throw TestStage.TestStageFailedException("Exception instead of silently fail")
                     }.startWaiting()
+
+                Metrics
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName)
+                    .paymentsAmountRecord(paymentLogRecord.amount)
 
                 paymentDetails.finishedAt = System.currentTimeMillis()
                 eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)

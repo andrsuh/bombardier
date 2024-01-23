@@ -34,7 +34,6 @@ class TestController(
 ) {
     companion object {
         val log = LoggerFactory.getLogger(TestController::class.java)
-        val metrics = Metrics()
     }
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
@@ -108,7 +107,7 @@ class TestController(
         val logger = LoggerWrapper(log, descriptor.name)
 
         val serviceName = descriptor.name
-        val metrics = metrics.withTags(metrics.serviceLabel, serviceName)
+        val metrics = Metrics.withTags(Metrics.serviceLabel to serviceName)
 
         val testingFlow = runningTests[serviceName] ?: return
 

@@ -1,11 +1,11 @@
 package com.itmo.microservices.demo.bombardier.stages
 
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
-import com.itmo.microservices.demo.bombardier.flow.TestController.Companion.metrics
 import com.itmo.microservices.demo.bombardier.flow.TestCtxKey
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.UserNotableEvents
 import com.itmo.microservices.demo.common.logging.testServiceFiledName
+import com.itmo.microservices.demo.common.metrics.Metrics
 import net.logstash.logback.marker.Markers.append
 import kotlin.coroutines.coroutineContext
 
@@ -76,7 +76,7 @@ interface TestStage {
             val state = wrapped.run(userManagement, externalServiceApi)
             val endTime = System.currentTimeMillis()
 
-            metrics.withTags(metrics.stageLabel, wrapped.name(), metrics.serviceLabel, testCtx().serviceName)
+            Metrics.withTags(Metrics.stageLabel to wrapped.name(), Metrics.serviceLabel to testCtx().serviceName)
                 .stageDurationRecord(endTime - startTime, state)
             return state
         }

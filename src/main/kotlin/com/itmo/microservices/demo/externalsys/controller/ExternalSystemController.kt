@@ -3,6 +3,7 @@ package com.itmo.microservices.demo.externalsys.controller
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.common.OngoingWindow
 import com.itmo.microservices.demo.common.RateLimiter
+import com.itmo.microservices.demo.common.metrics.Metrics
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -34,7 +35,7 @@ class ExternalSystemController(
     fun init() {
         services.storage.forEach { service ->
             arrayOf(1, 2).forEach {
-                val basePrice = 10
+                val basePrice = 1
                 val accName = "default-${it}"
                 accounts["${service.name}-$accName"] = Account(
                     service.name,
@@ -111,6 +112,9 @@ class ExternalSystemController(
         }
 
         logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
+        Metrics
+            .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
+            .externalSysChargeAmountRecord(totalAmount)
 
         if (!account.rateLimiter.tick()) {
             return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))

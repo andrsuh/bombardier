@@ -1,58 +1,80 @@
 package com.itmo.microservices.demo.common.metrics
 
-import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
-import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.stages.TestStage
-import io.micrometer.core.instrument.Metrics
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.Tag
 import io.micrometer.core.instrument.Timer
-import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 
 
-class Metrics {
-    private var tags = arrayListOf<String>()
+class Metrics(private val tags: List<Tag>) {
+    companion object {
+        val globalRegistry = io.micrometer.core.instrument.Metrics.globalRegistry
 
-    fun withTags(vararg tags: String): com.itmo.microservices.demo.common.metrics.Metrics {
-        var m = com.itmo.microservices.demo.common.metrics.Metrics()
-        m.tags = this.tags.clone() as ArrayList<String>
-        m.tags.addAll(tags)
-        return m
+        private const val externalCallDurationName = "http_external_duration"
+        private const val stageDurationOkName = "stage_duration_ok"
+        private const val stageDurationFailName = "stage_duration_fail"
+        private const val testDurationOkName = "test_duration_ok"
+        private const val testDurationFailName = "test_duration_fail"
+        private const val paymentsAmountName = "payments_amount"
+        private const val extSysChargeAmountName = "external_amount"
+
+        val stageLabel = "stage"
+        val serviceLabel = "service"
+        @JvmStatic
+        fun withTags(vararg labels: Pair<String, String>): Metrics {
+            return Metrics(labels.map { Tag.of(it.first, it.second) })
+        }
     }
 
-     fun stageDurationRecord(timeMs: Long, state: TestStage.TestContinuationType) {
+    fun stageDurationRecord(timeMs: Long, state: TestStage.TestContinuationType) {
         if (state.iSFailState()) {
-            Timer.builder(stageDurationFailName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
-                .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+            Timer.builder(stageDurationFailName)
+                .publishPercentiles(0.95)
+                .tags(tags)
+                .register(globalRegistry)
+                .record(timeMs, TimeUnit.MILLISECONDS)
         } else {
-            Timer.builder(stageDurationOkName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
-                .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+            Timer.builder(stageDurationOkName)
+                .publishPercentiles(0.95)
+                .tags(tags)
+                .register(globalRegistry)
+                .record(timeMs, TimeUnit.MILLISECONDS)
         }
     }
 
     fun testOkDurationRecord(timeMs: Long) {
-        Timer.builder(testDurationOkName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
-            .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+        Timer.builder(testDurationOkName)
+            .publishPercentiles(0.95)
+            .tags(tags)
+            .register(globalRegistry)
+            .record(timeMs, TimeUnit.MILLISECONDS)
     }
 
     fun testFailDurationRecord(timeMs: Long) {
-        Timer.builder(testDurationFailName).publishPercentiles(0.95).tags(*this.tags.toTypedArray())
-            .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+        Timer.builder(testDurationFailName)
+            .publishPercentiles(0.95)
+            .tags(tags)
+            .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+    }
+
+    fun paymentsAmountRecord(amount: Int) {
+        Counter.builder(paymentsAmountName)
+            .tags(tags)
+            .register(globalRegistry)
+            .increment(amount.toDouble())
+    }
+    fun externalSysChargeAmountRecord(amount: Int) {
+        Counter.builder(extSysChargeAmountName)
+            .tags(tags)
+            .register(globalRegistry)
+            .increment(amount.toDouble())
     }
 
 
     fun externalMethodDurationRecord(timeMs: Long) {
         Timer.builder(externalCallDurationName).publishPercentiles(0.95)
-            .tags(*this.tags.toTypedArray())
-            .register(Metrics.globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+            .tags(tags)
+            .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
     }
-
-    private val externalCallDurationName = "http_external_duration"
-    private val stageDurationOkName = "stage_duration_ok"
-    private val stageDurationFailName = "stage_duration_fail"
-    private val testDurationOkName = "test_duration_ok"
-    private val testDurationFailName = "test_duration_fail"
-
-
-    val stageLabel = "stage"
-    val serviceLabel = "service"
 }

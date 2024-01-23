@@ -82,7 +82,6 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
             _url(url)
             builderContext(this)
         }
-        val metrics = Metrics().withTags("service", this.descriptor.name, "method", method)
         return suspendCoroutine {
             val req = requestBuilder.build()
             if (req.method() != "GET") {
@@ -97,7 +96,9 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
 
                 override fun onResponse(call: Call, response: Response) {
                     val endTime = System.currentTimeMillis()
-                    metrics.withTags("code", response.code().toString()).externalMethodDurationRecord(endTime-startTime)
+                    Metrics
+                        .withTags("service" to this@ExternalServiceApiCommunicator.descriptor.name, "method" to method, "code" to response.code().toString())
+                        .externalMethodDurationRecord(endTime-startTime)
 
                     if (HttpStatus.Series.resolve(response.code()) == HttpStatus.Series.SUCCESSFUL) {
                         try {
