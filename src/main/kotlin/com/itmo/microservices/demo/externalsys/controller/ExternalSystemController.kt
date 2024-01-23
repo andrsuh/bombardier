@@ -110,11 +110,11 @@ class ExternalSystemController(
         val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.let {
             it.addAndGet(account.price)
         }
-
-        logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
-            .externalSysChargeAmountRecord(totalAmount)
+            .externalSysChargeAmountRecord(account.price)
+
+        logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
 
         if (!account.rateLimiter.tick()) {
             return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))

@@ -107,8 +107,6 @@ class TestController(
         val logger = LoggerWrapper(log, descriptor.name)
 
         val serviceName = descriptor.name
-        val metrics = Metrics.withTags(Metrics.serviceLabel to serviceName)
-
         val testingFlow = runningTests[serviceName] ?: return
 
         if (testingFlow.testParams.numberOfTests != null && testingFlow.testsFinished.get() >= testingFlow.testParams.numberOfTests) {
@@ -130,12 +128,10 @@ class TestController(
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
                 when {
-                    stage.isFinal() && !stageResult.iSFailState() || stageResult == STOP -> {
-                        metrics.testOkDurationRecord(System.currentTimeMillis() - testStartTime)
-                        return@launch
-                    }
-                    stageResult.iSFailState() -> {
-                        metrics.testFailDurationRecord(System.currentTimeMillis() - testStartTime)
+                    stageResult != CONTINUE -> {
+                        Metrics
+                            .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to stageResult.name)
+                            .testOkDurationRecord(System.currentTimeMillis() - testStartTime)
                         return@launch
                     }
                     stageResult == CONTINUE -> Unit
