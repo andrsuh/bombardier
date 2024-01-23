@@ -110,6 +110,7 @@ class ExternalSystemController(
         val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.let {
             it.addAndGet(account.price)
         }
+
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysChargeAmountRecord(account.price)

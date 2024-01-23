@@ -17,6 +17,7 @@ class Metrics(private val tags: List<Tag>) {
         private const val testDurationName = "test_duration"
         private const val testDurationFailName = "test_duration_fail"
         private const val paymentsAmountName = "payments_amount"
+        private const val paymentFinishedName = "payment_finished"
         private const val extSysChargeAmountName = "external_amount"
 
         val stageLabel = "stage"
@@ -43,7 +44,7 @@ class Metrics(private val tags: List<Tag>) {
         }
     }
 
-    fun testOkDurationRecord(timeMs: Long) {
+    fun testDurationRecord(timeMs: Long) {
         Timer.builder(testDurationName)
             .publishPercentiles(0.95)
             .tags(tags)
@@ -63,6 +64,12 @@ class Metrics(private val tags: List<Tag>) {
             .tags(tags)
             .register(globalRegistry)
             .increment(amount.toDouble())
+    }
+    fun paymentFinished() {
+        Counter.builder(paymentFinishedName)
+            .tags(tags)
+            .register(globalRegistry)
+            .increment()
     }
     fun externalSysChargeAmountRecord(amount: Int) {
         Counter.builder(extSysChargeAmountName)

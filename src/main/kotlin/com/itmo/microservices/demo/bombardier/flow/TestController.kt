@@ -6,12 +6,10 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServic
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWithApiAndAdditional
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
-import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.STOP
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
-import org.springframework.core.annotation.Order
 import org.springframework.stereotype.Service
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -123,24 +121,31 @@ class TestController(
 
         logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
+        val testStartTime = System.currentTimeMillis()
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
-            val testStartTime = System.currentTimeMillis()
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
-                when {
-                    stageResult != CONTINUE -> {
+                if (stageResult != CONTINUE) {
                         Metrics
                             .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to stageResult.name)
-                            .testOkDurationRecord(System.currentTimeMillis() - testStartTime)
+                            .testDurationRecord(System.currentTimeMillis() - testStartTime)
                         return@launch
-                    }
-                    stageResult == CONTINUE -> Unit
                 }
             }
+
+            Metrics
+                .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "SUCCESS")
+                .testDurationRecord(System.currentTimeMillis() - testStartTime)
+
         }.invokeOnCompletion { th ->
             if (th != null) {
                 logger.error("Unexpected fail in test", th)
             }
+
+            Metrics
+                .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "UNEXPECTED_FAIL")
+                .testDurationRecord(System.currentTimeMillis() - testStartTime)
+
             logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
             launchNewTestFlow(descriptor, stuff)
         }

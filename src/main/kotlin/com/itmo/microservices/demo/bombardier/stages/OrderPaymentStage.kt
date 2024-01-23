@@ -18,6 +18,11 @@ import java.util.concurrent.TimeUnit
 
 @Component
 class OrderPaymentStage : TestStage {
+    companion object {
+        const val paymentOutcome = "outcome"
+        const val paymentFailureReason = "failReason"
+    }
+
     @InjectEventLogger
     lateinit var eventLog: EventLogger
 
@@ -56,6 +61,9 @@ class OrderPaymentStage : TestStage {
                 if (it != null) {
                     throw it
                 }
+                Metrics
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SUBMIT_TIMEOUT")
+                    .paymentFinished()
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
 
@@ -73,6 +81,10 @@ class OrderPaymentStage : TestStage {
                 if (it != null) {
                     throw it
                 }
+                Metrics
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "TIMEOUT")
+                    .paymentFinished()
+
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
 
@@ -94,12 +106,19 @@ class OrderPaymentStage : TestStage {
                         if (it != null) {
                             throw it
                         }
+                        Metrics
+                            .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "SUCCESS", paymentFailureReason to "WITHDRAW_NOT_FOUND")
+                            .paymentFinished()
                         throw TestStage.TestStageFailedException("Exception instead of silently fail")
                     }.startWaiting()
 
                 Metrics
                     .withTags(Metrics.serviceLabel to testCtx().serviceName)
                     .paymentsAmountRecord(paymentLogRecord.amount)
+
+                Metrics
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "SUCCESS")
+                    .paymentFinished()
 
                 paymentDetails.finishedAt = System.currentTimeMillis()
                 eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
@@ -113,6 +132,9 @@ class OrderPaymentStage : TestStage {
 //                } else {
                     eventLogger.error(E_PAYMENT_FAILED, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
                     paymentDetails.failedAt = System.currentTimeMillis()
+                    Metrics
+                        .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SHOP_REJECTED")
+                        .paymentFinished()
                     return TestStage.TestContinuationType.FAIL
 //                }
             } // todo sukhoa not enough money
@@ -121,6 +143,9 @@ class OrderPaymentStage : TestStage {
                     OrderCommonNotableEvents.E_ILLEGAL_ORDER_TRANSITION,
                     order.id, order.status, status
                 )
+                Metrics
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "UNEXPECTED")
+                    .paymentFinished()
                 return TestStage.TestContinuationType.FAIL
             }
         }
