@@ -34,24 +34,17 @@ class OrderSettingDeliverySlotsStage : TestStage {
             10
         ) // TODO: might be a better idea to provide different number here
 
-        var deliverySlot = Duration.ZERO
-//        repeat(Random.nextInt(1, 4)) {
-            deliverySlot = availableSlots.random()
-            if (deliverySlot > Duration.ofSeconds(30)) {
-                deliverySlot = Duration.ofSeconds(Random.nextLong(1, 30))
-            }
-            val deliveryId = externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
+        val deliverySlot = availableSlots.random()
+        val deliveryId = externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
 
-            ConditionAwaiter.awaitAtMost(16, TimeUnit.SECONDS, Duration.ofSeconds(2)).condition {
-                val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+        ConditionAwaiter.awaitAtMost(30, TimeUnit.SECONDS, Duration.ofSeconds(2)).condition {
+            val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
-                order.deliveryId == deliveryId && order.status == OrderStatus.OrderDeliverySet
-            }.onFailure {
-                eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, "?")
-//                TestStage.TestContinuationType.FAIL
-                throw TestStage.TestStageFailedException("Exception instead of silently fail")
-            }.startWaiting()
-//        }
+            order.deliveryId == deliveryId && order.status == OrderStatus.OrderDeliverySet
+        }.onFailure {
+            eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, "?")
+            throw TestStage.TestStageFailedException("Exception instead of silently fail")
+        }.startWaiting()
 
         eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot.seconds, testCtx().orderId)
         return TestStage.TestContinuationType.CONTINUE
