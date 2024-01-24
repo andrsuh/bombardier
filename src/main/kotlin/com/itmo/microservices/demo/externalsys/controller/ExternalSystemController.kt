@@ -95,9 +95,8 @@ class ExternalSystemController(
         val price: Int,
     )
 
-
     data class Slo(
-        val upperLimitInvocationMillis: Long = 5_000,
+        val upperLimitInvocationMillis: Long = 10_000,
     )
 
     @PostMapping("/process")

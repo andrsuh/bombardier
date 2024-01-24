@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 
 @Service
 class TestController(
@@ -118,11 +119,12 @@ class TestController(
             logger.info("All tests Started. No new tests")
             return
         }
-
         logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
         val testStartTime = System.currentTimeMillis()
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
+            delay(Random.nextLong(15)) // to distribute load more evenly
+
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
                 if (stageResult != CONTINUE) {
