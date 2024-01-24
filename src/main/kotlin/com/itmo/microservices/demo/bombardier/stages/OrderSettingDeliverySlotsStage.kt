@@ -35,7 +35,7 @@ class OrderSettingDeliverySlotsStage : TestStage {
         ) // TODO: might be a better idea to provide different number here
 
         var deliverySlot = Duration.ZERO
-        repeat(Random.nextInt(1, 4)) {
+//        repeat(Random.nextInt(1, 4)) {
             deliverySlot = availableSlots.random()
             if (deliverySlot > Duration.ofSeconds(30)) {
                 deliverySlot = Duration.ofSeconds(Random.nextLong(1, 30))
@@ -44,14 +44,14 @@ class OrderSettingDeliverySlotsStage : TestStage {
 
             ConditionAwaiter.awaitAtMost(16, TimeUnit.SECONDS, Duration.ofSeconds(2)).condition {
                 val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
-                val deliveryIdInOrder = order.deliveryId
-                deliveryIdInOrder == deliveryId && order.status == OrderStatus.OrderDeliverySet
+
+                order.deliveryId == deliveryId && order.status == OrderStatus.OrderDeliverySet
             }.onFailure {
                 eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, "?")
 //                TestStage.TestContinuationType.FAIL
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
-        }
+//        }
 
         eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot.seconds, testCtx().orderId)
         return TestStage.TestContinuationType.CONTINUE

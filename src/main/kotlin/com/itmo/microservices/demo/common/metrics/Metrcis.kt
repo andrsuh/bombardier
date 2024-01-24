@@ -37,6 +37,7 @@ class Metrics(private val tags: List<Tag>) {
                 .record(timeMs, TimeUnit.MILLISECONDS)
         } else {
             Timer.builder(stageDurationOkName)
+                .publishPercentiles(0.5)
                 .publishPercentiles(0.95)
                 .tags(tags)
                 .register(globalRegistry)
