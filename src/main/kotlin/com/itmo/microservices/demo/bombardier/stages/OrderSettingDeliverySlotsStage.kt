@@ -11,7 +11,6 @@ import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 @Component
 class OrderSettingDeliverySlotsStage : TestStage {

@@ -15,6 +15,8 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
+import kotlinx.coroutines.flow.callbackFlow
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -51,7 +53,9 @@ open class ExternalServiceApiCommunicator(
     private val props: BombardierProperties
 ) {
     companion object {
-        private val TIMEOUT = Duration.ofSeconds(10)
+        private val CALL_TIMEOUT = Duration.ofSeconds(10)
+        private val READ_TIMEOUT = Duration.ofSeconds(5)
+        private val WRITE_TIMEOUT = Duration.ofSeconds(5)
         private val JSON = MediaType.parse("application/json; charset=utf-8")
 
         private val externalServiceExecutor =
@@ -68,7 +72,38 @@ open class ExternalServiceApiCommunicator(
     private val client = OkHttpClient.Builder().run {
         dispatcher(Dispatcher(externalServiceExecutor))
         protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
-        callTimeout(TIMEOUT)
+        callTimeout(CALL_TIMEOUT)
+        readTimeout(READ_TIMEOUT)
+        writeTimeout(WRITE_TIMEOUT)
+        this.eventListener(object : EventListener() {
+            private val callMap = ConcurrentHashMap<Call, Long>()
+
+            override fun callStart(call: Call) {
+                callMap[call] = System.currentTimeMillis()
+            }
+
+            override fun callEnd(call: Call) {
+                val startTime = callMap.remove(call) ?: return
+                Metrics
+                    .withTags(
+                        "method" to call.request().method(),
+                        "url" to call.request().url().toString(),
+                        "result" to "OK"
+                    )
+                    .externalMethodDurationRecord(System.currentTimeMillis() - startTime)
+            }
+
+            override fun callFailed(call: Call, ioe: IOException) {
+                val startTime = callMap.remove(call) ?: return
+                Metrics
+                    .withTags(
+                        "method" to call.request().method(),
+                        "url" to call.request().url().toString(),
+                        "result" to "FAIL"
+                    )
+                    .externalMethodDurationRecord(System.currentTimeMillis() - startTime)
+            }
+        })
         connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
         build()
     }
@@ -105,21 +140,29 @@ open class ExternalServiceApiCommunicator(
                 logger.info("sending request to ${req.method()} ${req.url().url()}")
             }
             val startTime = System.currentTimeMillis()
+            val serviceName = descriptor.name
 
             client.newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
+//                    Metrics
+//                        .withTags(
+//                            "service" to serviceName,
+//                            "method" to method,
+//                            "code" to "FAILED"
+//                        )
+//                        .externalMethodDurationRecord(System.currentTimeMillis() - startTime)
                     it.resumeWithException(e)
                 }
 
                 override fun onResponse(call: Call, response: Response) {
                     val endTime = System.currentTimeMillis()
-                    Metrics
-                        .withTags(
-                            "service" to this@ExternalServiceApiCommunicator.descriptor.name,
-                            "method" to method,
-                            "code" to response.code().toString()
-                        )
-                        .externalMethodDurationRecord(endTime - startTime)
+//                    Metrics
+//                        .withTags(
+//                            "service" to serviceName,
+//                            "method" to method,
+//                            "code" to response.code().toString()
+//                        )
+//                        .externalMethodDurationRecord(endTime - startTime)
 
                     if (HttpStatus.Series.resolve(response.code()) == HttpStatus.Series.SUCCESSFUL) {
                         try {
