@@ -16,6 +16,7 @@ import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class CachedResponseBody internal constructor(_body: ResponseBody) {
     private val string: String
@@ -50,7 +51,7 @@ open class ExternalServiceApiCommunicator(
     private val props: BombardierProperties
 ) {
     companion object {
-        private val TIMEOUT = Duration.ofSeconds(20)
+        private val TIMEOUT = Duration.ofSeconds(10)
         private val JSON = MediaType.parse("application/json; charset=utf-8")
 
         private val externalServiceExecutor =
@@ -68,6 +69,7 @@ open class ExternalServiceApiCommunicator(
         dispatcher(Dispatcher(externalServiceExecutor))
         protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
         callTimeout(TIMEOUT)
+        connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
         build()
     }
 
