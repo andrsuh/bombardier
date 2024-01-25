@@ -14,6 +14,7 @@ class Metrics(private val tags: List<Tag>) {
         val globalRegistry = io.micrometer.core.instrument.Metrics.globalRegistry
 
         private const val externalCallDurationName = "http_external_duration"
+        private const val timeHttpRequestLatent = "http_request_latent"
         private const val stageDurationOkName = "stage_duration_ok"
         private const val stageDurationFailName = "stage_duration_fail"
         private const val testDurationName = "test_duration"
@@ -89,6 +90,13 @@ class Metrics(private val tags: List<Tag>) {
 
     fun externalMethodDurationRecord(timeMs: Long) {
         Timer.builder(externalCallDurationName)
+            .publishPercentiles(0.95)
+            .tags(tags)
+            .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+    }
+
+    fun timeHttpRequestLatent(timeMs: Long) {
+        Timer.builder(timeHttpRequestLatent)
             .publishPercentiles(0.95)
             .tags(tags)
             .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
