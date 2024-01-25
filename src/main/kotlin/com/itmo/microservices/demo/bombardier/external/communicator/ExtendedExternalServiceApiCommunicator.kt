@@ -4,9 +4,9 @@ import com.itmo.microservices.demo.bombardier.BombardierProperties
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
 import java.util.concurrent.ExecutorService
 
-open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor, ex: ExecutorService, props: BombardierProperties) :
+open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor, props: BombardierProperties) :
     ExternalServiceApiCommunicator(
-        descriptor, ex, props
+        descriptor, props
     ) {
     suspend inline fun <reified T> executeWithDeserialize(method: String, url: String) =
         executeWithDeserialize<T>(method, url) {}

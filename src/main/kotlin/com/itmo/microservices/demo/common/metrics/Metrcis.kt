@@ -4,6 +4,8 @@ import com.itmo.microservices.demo.bombardier.stages.TestStage
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Tag
 import io.micrometer.core.instrument.Timer
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 
 
@@ -25,6 +27,11 @@ class Metrics(private val tags: List<Tag>) {
         @JvmStatic
         fun withTags(vararg labels: Pair<String, String>): Metrics {
             return Metrics(labels.map { Tag.of(it.first, it.second) })
+        }
+
+        @JvmStatic
+        fun executorServiceMonitoring(executorService: ExecutorService, executorName: String) {
+            ExecutorServiceMetrics.monitor(globalRegistry, executorService, executorName, listOf())
         }
     }
 
@@ -81,7 +88,8 @@ class Metrics(private val tags: List<Tag>) {
 
 
     fun externalMethodDurationRecord(timeMs: Long) {
-        Timer.builder(externalCallDurationName).publishPercentiles(0.95)
+        Timer.builder(externalCallDurationName)
+            .publishPercentiles(0.95)
             .tags(tags)
             .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
     }

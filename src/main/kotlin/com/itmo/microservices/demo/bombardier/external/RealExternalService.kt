@@ -9,13 +9,15 @@ import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
 import org.springframework.http.HttpStatus
 import java.time.Duration
 import java.util.*
-import java.util.concurrent.Executors
-import java.util.concurrent.ForkJoinPool
+
 class UserNotAuthenticatedException(username: String) : Exception(username)
 
-class RealExternalService(override val descriptor: ServiceDescriptor, private val userStorage: UserStorage, props: BombardierProperties) : ExternalServiceApi {
-    private val executorService = Executors.newFixedThreadPool(16)
-    private val communicator = UserAwareExternalServiceApiCommunicator(descriptor, executorService, props)
+class RealExternalService(
+    override val descriptor: ServiceDescriptor,
+    private val userStorage: UserStorage,
+    props: BombardierProperties
+) : ExternalServiceApi {
+    private val communicator = UserAwareExternalServiceApiCommunicator(descriptor, props)
 
     suspend fun getUserSession(id: UUID): ExternalServiceToken {
         val username = getUser(id).name
@@ -49,7 +51,7 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
         val session = getUserSession(userId)
         val url = if (orderId != null) "/finlog?orderId=$orderId" else "/finlog"
 
-        return communicator.executeWithAuthAndDeserialize("userFinancialHistory",url, session)
+        return communicator.executeWithAuthAndDeserialize("userFinancialHistory", url, session)
     }
 
     override suspend fun createOrder(userId: UUID): Order {
@@ -63,13 +65,13 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
     override suspend fun getOrder(userId: UUID, orderId: UUID): Order {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("getOrder","/orders/$orderId", session)
+        return communicator.executeWithAuthAndDeserialize("getOrder", "/orders/$orderId", session)
     }
 
     override suspend fun getItems(userId: UUID, available: Boolean): List<CatalogItem> {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("getItems","/items?available=$available&size=150", session)
+        return communicator.executeWithAuthAndDeserialize("getItems", "/items?available=$available&size=150", session)
     }
 
     override suspend fun putItemToOrder(userId: UUID, orderId: UUID, itemId: UUID, amount: Int): Boolean {
@@ -103,13 +105,17 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
     override suspend fun getDeliverySlots(userId: UUID, number: Int): List<Duration> {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("getDeliverySlots","/delivery/slots?number=$number", session)
+        return communicator.executeWithAuthAndDeserialize("getDeliverySlots", "/delivery/slots?number=$number", session)
     }
 
     override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): UUID {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("setDeliveryTime", "/orders/$orderId/delivery?slot=${slot.seconds}", session) {
+        return communicator.executeWithAuthAndDeserialize(
+            "setDeliveryTime",
+            "/orders/$orderId/delivery?slot=${slot.seconds}",
+            session
+        ) {
             post()
         }
     }
@@ -132,12 +138,16 @@ class RealExternalService(override val descriptor: ServiceDescriptor, private va
     override suspend fun getBookingHistory(userId: UUID, bookingId: UUID): List<BookingLogRecord> {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("getBookingHistory","/_internal/bookingHistory/$bookingId", session)
+        return communicator.executeWithAuthAndDeserialize(
+            "getBookingHistory",
+            "/_internal/bookingHistory/$bookingId",
+            session
+        )
     }
 
     override suspend fun deliveryLog(userId: UUID, orderId: UUID): List<DeliveryInfoRecord> {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("deliveryLog","/_internal/deliveryLog/$orderId", session)
+        return communicator.executeWithAuthAndDeserialize("deliveryLog", "/_internal/deliveryLog/$orderId", session)
     }
 }

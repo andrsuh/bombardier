@@ -8,6 +8,7 @@ import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
+import io.micrometer.core.instrument.util.NamedThreadFactory
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -37,7 +38,9 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    val executor: ExecutorService = Executors.newFixedThreadPool(4)
+    private val executor: ExecutorService = Executors.newFixedThreadPool(16, NamedThreadFactory("test-controller-executor")).also {
+        Metrics.executorServiceMonitoring(it, "test-controller-executor")
+    }
 
     private val coroutineScope = CoroutineScope(executor.asCoroutineDispatcher())
 

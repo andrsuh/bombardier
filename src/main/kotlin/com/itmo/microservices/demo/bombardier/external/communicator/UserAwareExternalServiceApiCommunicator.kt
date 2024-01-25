@@ -2,24 +2,18 @@ package com.itmo.microservices.demo.bombardier.external.communicator
 
 import com.itmo.microservices.demo.bombardier.BombardierProperties
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.util.concurrent.ExecutorService
 
 private const val REFRESH_TIME_MS: Long = 1000L * (tokenLifetimeSec - 30)
 
-class UserAwareExternalServiceApiCommunicator(descriptor: ServiceDescriptor, ex: ExecutorService, props: BombardierProperties) :
-    ExtendedExternalServiceApiCommunicator(
-        descriptor, ex, props
-    ) {
+class UserAwareExternalServiceApiCommunicator(descriptor: ServiceDescriptor, props: BombardierProperties) :
+    ExtendedExternalServiceApiCommunicator(descriptor, props) {
     private val usersMap = mutableMapOf<String, ExternalServiceToken>()
 
-    private val refresherCoroutine = CoroutineScope(ex.asCoroutineDispatcher()).launch {
-        if (!props.authEnabled) return@launch
-        runSessionRefresher()
-    }
+//    private val refresherCoroutine = CoroutineScope(ex.asCoroutineDispatcher()).launch {
+//        if (!props.authEnabled) return@launch
+//        runSessionRefresher()
+//    }
 
     override suspend fun authenticate(username: String, password: String): ExternalServiceToken {
         val availableToken = usersMap[username]

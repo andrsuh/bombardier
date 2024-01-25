@@ -10,22 +10,28 @@ import org.springframework.http.HttpStatus
 import java.io.IOException
 import java.net.URL
 import java.time.Duration
-import java.util.concurrent.ExecutorService
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
-import java.io.InterruptedIOException
+import io.micrometer.core.instrument.util.NamedThreadFactory
+import java.util.concurrent.Executors
 
 class CachedResponseBody internal constructor(_body: ResponseBody) {
     private val string: String
+
     init {
         string = _body.string()
     }
+
     fun string() = string
 }
 
-class TrimmedResponse private constructor(private val body: CachedResponseBody, private val code: Int, private val req: Request) {
+class TrimmedResponse private constructor(
+    private val body: CachedResponseBody,
+    private val code: Int,
+    private val req: Request
+) {
     companion object {
         fun fromResponse(resp: Response): TrimmedResponse {
             return TrimmedResponse(CachedResponseBody(resp.body()!!), resp.code(), resp.request()).apply {
@@ -33,16 +39,24 @@ class TrimmedResponse private constructor(private val body: CachedResponseBody, 
             }
         }
     }
+
     fun body() = body
     fun code() = code
     fun request() = req
 }
 
-open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescriptor, private val executor: ExecutorService, private val props: BombardierProperties) {
+open class ExternalServiceApiCommunicator(
+    private val descriptor: ServiceDescriptor,
+    private val props: BombardierProperties
+) {
     companion object {
         private val TIMEOUT = Duration.ofSeconds(20)
         private val JSON = MediaType.parse("application/json; charset=utf-8")
-//        fun JSONObject.toRequestBody() = RequestBody.create(JSON, this.toString())
+
+        private val externalServiceExecutor =
+            Executors.newFixedThreadPool(16, NamedThreadFactory("external-service-executor")).also {
+                Metrics.executorServiceMonitoring(it, "external-service-executor")
+            }
     }
 
     val logger = LoggerWrapper(
@@ -51,7 +65,7 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
     )
 
     private val client = OkHttpClient.Builder().run {
-        dispatcher(Dispatcher(executor))
+        dispatcher(Dispatcher(externalServiceExecutor))
         protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
         callTimeout(TIMEOUT)
         build()
@@ -67,13 +81,14 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
         mapper.readValue(resp, TokenResponse::class.java).toExternalServiceToken(descriptor.url)
     }
 
-    protected suspend fun reauthenticate(token: ExternalServiceToken) = execute("reauthenticate", "/authentication/refresh") {
-        assert(!token.isRefreshTokenExpired())
-        post()
-        header(HttpHeaders.AUTHORIZATION, "Bearer ${token.refreshToken}")
-    }.run {
-        mapper.readValue(body().string(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
-    }
+    protected suspend fun reauthenticate(token: ExternalServiceToken) =
+        execute("reauthenticate", "/authentication/refresh") {
+            assert(!token.isRefreshTokenExpired())
+            post()
+            header(HttpHeaders.AUTHORIZATION, "Bearer ${token.refreshToken}")
+        }.run {
+            mapper.readValue(body().string(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
+        }
 
     suspend fun execute(method: String, url: String) = execute(method, url) {}
 
@@ -97,18 +112,22 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
                 override fun onResponse(call: Call, response: Response) {
                     val endTime = System.currentTimeMillis()
                     Metrics
-                        .withTags("service" to this@ExternalServiceApiCommunicator.descriptor.name, "method" to method, "code" to response.code().toString())
-                        .externalMethodDurationRecord(endTime-startTime)
+                        .withTags(
+                            "service" to this@ExternalServiceApiCommunicator.descriptor.name,
+                            "method" to method,
+                            "code" to response.code().toString()
+                        )
+                        .externalMethodDurationRecord(endTime - startTime)
 
                     if (HttpStatus.Series.resolve(response.code()) == HttpStatus.Series.SUCCESSFUL) {
                         try {
                             it.resume(TrimmedResponse.fromResponse(response))
-                        }
-                        catch (t: Throwable) {
+                        } catch (t: Throwable) {
                             it.resumeWithException(t)
                         }
                         return
                     }
+
                     it.resumeWithException(
                         InvalidExternalServiceResponseException(
                             response.code(),
@@ -123,7 +142,8 @@ open class ExternalServiceApiCommunicator(private val descriptor: ServiceDescrip
         }
     }
 
-    suspend fun executeWithAuth(method: String, url: String, credentials: ExternalServiceToken) = executeWithAuth(method, url, credentials) {}
+    suspend fun executeWithAuth(method: String, url: String, credentials: ExternalServiceToken) =
+        executeWithAuth(method, url, credentials) {}
 
     suspend fun executeWithAuth(
         method: String,
