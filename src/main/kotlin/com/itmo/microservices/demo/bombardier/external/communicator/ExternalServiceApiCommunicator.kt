@@ -15,8 +15,11 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
+import org.springframework.stereotype.Component
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 
 class CachedResponseBody internal constructor(_body: ResponseBody) {
     private val string: String
@@ -48,73 +51,17 @@ class TrimmedResponse private constructor(
 
 open class ExternalServiceApiCommunicator(
     private val descriptor: ServiceDescriptor,
-    private val props: BombardierProperties
+    private val props: BombardierProperties,
+    private val httpClientsManager: HttpClientsManager = HttpClientsManager()
 ) {
     companion object {
-        private val CALL_TIMEOUT = Duration.ofSeconds(10)
-        private val READ_TIMEOUT = Duration.ofSeconds(5)
-        private val WRITE_TIMEOUT = Duration.ofSeconds(5)
         private val JSON = MediaType.parse("application/json; charset=utf-8")
-
-        private val externalServiceExecutor =
-            Executors.newFixedThreadPool(16, NamedThreadFactory("external-service-executor")).also {
-                Metrics.executorServiceMonitoring(it, "external-service-executor")
-            }
     }
 
     val logger = LoggerWrapper(
         LoggerFactory.getLogger(ExternalServiceApiCommunicator::class.java),
         descriptor.name
     )
-
-    private val client = OkHttpClient.Builder().run {
-        dispatcher(Dispatcher(externalServiceExecutor))
-        protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
-        callTimeout(CALL_TIMEOUT)
-        readTimeout(READ_TIMEOUT)
-        writeTimeout(WRITE_TIMEOUT)
-        this.eventListener(object : EventListener() {
-
-            override fun callStart(call: Call) {
-                call.request().tag(CallContext::class.java)?.let {
-                    Metrics
-                        .withTags(
-                            "service" to it.serviceName,
-                            "method" to it.externalApiEndpoint
-                        )
-                        .timeHttpRequestLatent(System.currentTimeMillis() - it.submissionTime)
-                }
-            }
-
-            override fun callEnd(call: Call) {
-                call.request().tag(CallContext::class.java)?.let {
-                    val endTime = System.currentTimeMillis()
-                    Metrics
-                        .withTags(
-                            "service" to it.serviceName,
-                            "method" to it.externalApiEndpoint,
-                            "result" to "OK"
-                        )
-                        .externalMethodDurationRecord(endTime - it.startTime)
-                }
-            }
-
-            override fun callFailed(call: Call, ioe: IOException) {
-                call.request().tag(CallContext::class.java)?.let {
-                    val endTime = System.currentTimeMillis()
-                    Metrics
-                        .withTags(
-                            "service" to it.serviceName,
-                            "method" to it.externalApiEndpoint,
-                            "result" to "FAILED"
-                        )
-                        .externalMethodDurationRecord(endTime - it.startTime)
-                }
-            }
-        })
-        connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
-        build()
-    }
 
     open suspend fun authenticate(username: String, password: String) = execute("authenticate", "/authentication") {
         jsonPost(
@@ -154,28 +101,12 @@ open class ExternalServiceApiCommunicator(
                 logger.info("sending request to ${req.method()} ${req.url().url()}")
             }
 
-            client.newCall(req).enqueue(object : Callback {
+            httpClientsManager.getClient(externalApiMethod).newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-//                    Metrics
-//                        .withTags(
-//                            "service" to serviceName,
-//                            "method" to externalApiMethod,
-//                            "code" to "FAILED"
-//                        )
-//                        .externalMethodDurationRecord(System.currentTimeMillis() - startTime)
                     it.resumeWithException(e)
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    val endTime = System.currentTimeMillis()
-//                    Metrics
-//                        .withTags(
-//                            "service" to serviceName,
-//                            "method" to method,
-//                            "code" to response.code().toString()
-//                        )
-//                        .externalMethodDurationRecord(endTime - startTime)
-
                     if (HttpStatus.Series.resolve(response.code()) == HttpStatus.Series.SUCCESSFUL) {
                         try {
                             it.resume(TrimmedResponse.fromResponse(response))
@@ -255,11 +186,88 @@ open class ExternalServiceApiCommunicator(
             put(emptyBody)
         }
     }
+}
 
-    class CallContext(
-        val serviceName: String,
-        val externalApiEndpoint: String,
-        val submissionTime: Long = System.currentTimeMillis(),
-        var startTime: Long = System.currentTimeMillis(),
-    )
+class CallContext(
+    val serviceName: String,
+    val externalApiEndpoint: String,
+    val submissionTime: Long = System.currentTimeMillis(),
+    var startTime: Long = System.currentTimeMillis(),
+)
+
+class HttpClientsManager {
+    companion object {
+        private val CALL_TIMEOUT = Duration.ofSeconds(10)
+        private val READ_TIMEOUT = Duration.ofSeconds(5)
+        private val WRITE_TIMEOUT = Duration.ofSeconds(5)
+    }
+
+    private val clients = ConcurrentHashMap<Int, OkHttpClient>(25)
+    private val dispatchers = ConcurrentHashMap<Int, Dispatcher>(25)
+
+    fun getClient(testIdentifier: String): OkHttpClient {
+        val hash = abs(testIdentifier.hashCode()) % 25
+
+        val dispatcher = dispatchers.computeIfAbsent(hash) {
+            Executors.newFixedThreadPool(8, NamedThreadFactory("external-service-executor-$hash")).also {
+                Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
+            }.let {
+                Dispatcher(it)
+            }
+        }
+
+        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % 25) {
+            OkHttpClient.Builder().run {
+                dispatcher(dispatcher)
+                protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+                callTimeout(CALL_TIMEOUT)
+                readTimeout(READ_TIMEOUT)
+                writeTimeout(WRITE_TIMEOUT)
+                this.eventListener(object : EventListener() {
+
+                    override fun callStart(call: Call) {
+                        call.request().tag(CallContext::class.java)?.let {
+                            Metrics
+                                .withTags(
+                                    "service" to it.serviceName,
+                                    "method" to it.externalApiEndpoint
+                                )
+                                .timeHttpRequestLatent(System.currentTimeMillis() - it.submissionTime)
+                        }
+                    }
+
+                    override fun callEnd(call: Call) {
+                        call.request().tag(CallContext::class.java)?.let {
+                            val endTime = System.currentTimeMillis()
+                            Metrics
+                                .withTags(
+                                    "service" to it.serviceName,
+                                    "method" to it.externalApiEndpoint,
+                                    "result" to "OK"
+                                )
+                                .externalMethodDurationRecord(endTime - it.startTime)
+                        }
+                    }
+
+                    override fun callFailed(call: Call, ioe: IOException) {
+                        call.request().tag(CallContext::class.java)?.let {
+                            val endTime = System.currentTimeMillis()
+                            Metrics
+                                .withTags(
+                                    "service" to it.serviceName,
+                                    "method" to it.externalApiEndpoint,
+                                    "result" to "FAILED"
+                                )
+                                .externalMethodDurationRecord(endTime - it.startTime)
+                        }
+                    }
+                })
+                // connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
+                build()
+            }
+        }
+
+    }
+
+
 }
