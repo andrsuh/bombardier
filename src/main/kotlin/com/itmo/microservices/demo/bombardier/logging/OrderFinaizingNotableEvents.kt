@@ -6,7 +6,7 @@ enum class OrderFinaizingNotableEvents(private val template: String) : NotableEv
 
     I_START_FINALIZING("Starting booking items stage for order {}"),
     I_NO_FINALIZING_REQUIRED("No finalizing required for order {}"),
-    E_BOOKING_LOG_RECORD_NOT_FOUND("Cannot find booking log record: booking id = {}; itemId = {}}; orderId = {}"),
+    E_BOOKING_LOG_RECORD_NOT_FOUND("Cannot find booking log record: booking id = {}; orderId = {}"),
     E_ORDER_HAS_FAIL_ITEMS("Order {} is booked, but there are failed items"),
     E_ITEMS_FAIL("Booking {} of order {} is marked as successful, but item {} is marked as {}"),
     I_SUCCESS_VALIDATE_BOOKED("Successfully validated all items in BOOKED order {}"),

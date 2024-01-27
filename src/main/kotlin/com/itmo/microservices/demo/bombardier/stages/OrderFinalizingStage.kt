@@ -54,6 +54,18 @@ class OrderFinalizingStage : TestStage {
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
 
+
+        ConditionAwaiter.awaitAtMost(5, TimeUnit.SECONDS)
+            .condition {
+                val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
+                val booked = bookingRecords.map { it.itemId }.toSet()
+
+                orderStateAfterBooking.itemsMap.keys.all { it in booked }
+            }.onFailure {
+                eventLogger.error(E_BOOKING_LOG_RECORD_NOT_FOUND, bookingResult.id, testCtx().orderId)
+                throw TestStage.TestStageFailedException("Exception instead of silently fail")
+            }.startWaiting()
+
         val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
         for (id in orderStateAfterBooking.itemsMap.keys) {
             if (bookingRecords.none { it.itemId == id }) {
@@ -63,7 +75,7 @@ class OrderFinalizingStage : TestStage {
             }
         }
 
-        when (orderStateAfterBooking.status) { //TODO Elina рассмотреть результат discard
+        when (orderStateAfterBooking.status) {
             OrderStatus.OrderBooked -> {
                 if (bookingResult.failedItems.isNotEmpty()) {
                     eventLogger.error(E_ORDER_HAS_FAIL_ITEMS, testCtx().orderId)
