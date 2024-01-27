@@ -199,9 +199,9 @@ class CallContext(
 
 class HttpClientsManager {
     companion object {
-        private val CALL_TIMEOUT = Duration.ofSeconds(20)
-        private val READ_TIMEOUT = Duration.ofSeconds(10)
-        private val WRITE_TIMEOUT = Duration.ofSeconds(10)
+        private val CALL_TIMEOUT = Duration.ofSeconds(40)
+        private val READ_TIMEOUT = Duration.ofSeconds(30)
+        private val WRITE_TIMEOUT = Duration.ofSeconds(30)
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
