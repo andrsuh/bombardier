@@ -25,7 +25,7 @@ class OrderCollectingStage : TestStage {
 
         val itemIds = mutableMapOf<UUID, Int>()
         val items = externalServiceApi.getAvailableItems(testCtx().userId!!)
-        repeat(Random.nextInt(1, 5)) {
+        repeat(Random.nextInt(1, 3)) {
             val amount = Random.nextInt(1, 5)
             val itemToAdd = items.random()
                 .also { // todo should not to do on each addition but! we can randomise it

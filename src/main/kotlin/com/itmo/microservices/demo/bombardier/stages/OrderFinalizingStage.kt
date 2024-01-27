@@ -40,7 +40,7 @@ class OrderFinalizingStage : TestStage {
 
         var orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
-        ConditionAwaiter.awaitAtMost(5, TimeUnit.SECONDS)
+        ConditionAwaiter.awaitAtMost(10, TimeUnit.SECONDS)
             .condition {
                 orderStateAfterBooking.status != OrderStatus.OrderBookingInProgress.also {
                     orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)

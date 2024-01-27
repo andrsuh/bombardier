@@ -2,6 +2,7 @@ package com.itmo.microservices.demo.bombardier.external.communicator
 
 import com.itmo.microservices.demo.bombardier.BombardierProperties
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
+import com.itmo.microservices.demo.bombardier.flow.TestCtxKey
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import okhttp3.*
 import org.slf4j.LoggerFactory
@@ -15,10 +16,9 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
-import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
 class CachedResponseBody internal constructor(_body: ResponseBody) {
@@ -89,6 +89,8 @@ open class ExternalServiceApiCommunicator(
             _url(url)
             builderContext(this)
         }
+        val testId = coroutineContext[TestCtxKey]?.testId?.toString()
+
         return suspendCoroutine {
             val submissionTime = System.currentTimeMillis()
             val serviceName = descriptor.name
@@ -101,7 +103,7 @@ open class ExternalServiceApiCommunicator(
                 logger.info("sending request to ${req.method()} ${req.url().url()}")
             }
 
-            httpClientsManager.getClient(externalApiMethod).newCall(req).enqueue(object : Callback {
+            httpClientsManager.getClient(testId ?: externalApiMethod).newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     it.resumeWithException(e)
                 }
@@ -200,6 +202,8 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(20)
         private val READ_TIMEOUT = Duration.ofSeconds(10)
         private val WRITE_TIMEOUT = Duration.ofSeconds(10)
+
+        val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
 
     private val clients = ConcurrentHashMap<Int, OkHttpClient>(25)
@@ -217,6 +221,7 @@ class HttpClientsManager {
         }
 
         return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % 25) {
+            logger.info("Creating new http client for test $testIdentifier")
             OkHttpClient.Builder().run {
                 dispatcher(dispatcher)
                 protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
