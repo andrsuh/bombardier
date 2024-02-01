@@ -3,6 +3,7 @@ package com.itmo.microservices.demo.externalsys.controller
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.common.OngoingWindow
 import com.itmo.microservices.demo.common.metrics.Metrics
+import io.github.resilience4j.ratelimiter.RateLimiter
 import io.github.resilience4j.ratelimiter.RateLimiterConfig
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry
 import kotlinx.coroutines.delay
@@ -61,14 +62,14 @@ class ExternalSystemController(
                 price = (basePrice * 0.7).toInt()
             )
 
-            // default 3 -> like default 2, but rate limit is 7 per second
+            // default 3 -> like default 2, but rate limit is 15 per second
             val accName3 = "default-3"
             accounts["${service.name}-$accName3"] = Account(
                 service.name,
                 accName3,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName3, 7, TimeUnit.SECONDS),
+                rateLimiter = makeRateLimiter(accName3, 15, TimeUnit.SECONDS),
                 window = OngoingWindow(1000),
                 price = (basePrice * 0.4).toInt()
             )
@@ -80,7 +81,7 @@ class ExternalSystemController(
                 accName4,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName4, 7, TimeUnit.SECONDS),
+                rateLimiter = makeRateLimiter(accName4, 15, TimeUnit.SECONDS),
                 window = OngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
             )
@@ -92,7 +93,7 @@ class ExternalSystemController(
                 accName42,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName42, 7, TimeUnit.SECONDS),
+                rateLimiter = makeRateLimiter(accName42, 15, TimeUnit.SECONDS),
                 window = OngoingWindow(15),
                 price = (basePrice * 0.35).toInt()
             )
@@ -148,7 +149,7 @@ class ExternalSystemController(
         val accountName: String,
         val callbackPath: String?,
         val slo: Slo = Slo(),
-        val rateLimiter: io.github.resilience4j.ratelimiter.RateLimiter,
+        val rateLimiter: RateLimiter,
         val window: OngoingWindow,
         val price: Int,
     )
@@ -205,7 +206,7 @@ class ExternalSystemController(
     )
 }
 
-fun makeRateLimiter(accountName: String, rate: Int, timeUnit: TimeUnit = TimeUnit.SECONDS): io.github.resilience4j.ratelimiter.RateLimiter {
+fun makeRateLimiter(accountName: String, rate: Int, timeUnit: TimeUnit = TimeUnit.SECONDS): RateLimiter {
     val config = RateLimiterConfig.custom()
         .limitRefreshPeriod(if (timeUnit == TimeUnit.SECONDS) Duration.ofSeconds(1) else Duration.ofMinutes(1) )
         .limitForPeriod(rate)
