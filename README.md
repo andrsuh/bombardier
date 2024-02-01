@@ -44,3 +44,13 @@ To see and call HTTP API of the service:
 ```http request
 http://localhost:1234/swagger-ui/index.html#/bombardier-controller
 ```
+
+
+# Запуск
+1. Запустите prometheus и grafana из `docker-compose.yml`. 
+2. После успешного запуска Grafana будет доступна на `http://localhost:3000/`. Пароль для админа указан указан при создании сервиса. Prometheus - `http://localhost:9090/`. Grafana создаст папку grafana/data, в которой будет хранить свои данные. Prometheus - prometheus/data
+3. После создания обоих docker сервисов, Grafana должна создаться DataSource `http://localhost:3000/connections/datasources` и дашборд `http://localhost:3000/dashboards`. 
+4. Запустите `DemoServiceApplication.java` 
+5. Запустите тестируемый сервис 
+6. Запустите `run_tests.http`. Это запустит исполнение тестов бомбардира. Подправьте параметы, если нужно
+7. Смотрите на метрики и наслаждайтесь

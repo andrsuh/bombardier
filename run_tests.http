@@ -1,0 +1,9 @@
+POST http://127.0.0.1:1234/test/run
+Content-Type: application/json
+
+{
+  "serviceName": "test",
+  "usersCount": 200,
+  "parallelProcCount": 200,
+  "testCount": 200
+}
