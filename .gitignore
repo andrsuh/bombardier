@@ -34,3 +34,5 @@ build/
 
 docker-compose.override.yml
 .env
+grafana/data/
+prometheus/data
