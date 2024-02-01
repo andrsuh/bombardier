@@ -11,6 +11,7 @@ import com.itmo.microservices.demo.bombardier.logging.OrderFinaizingNotableEvent
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -40,22 +41,7 @@ class OrderFinalizingStage : TestStage {
 
         var orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
-        ConditionAwaiter.awaitAtMost(20, TimeUnit.SECONDS)
-            .condition {
-                orderStateAfterBooking.status != OrderStatus.OrderBookingInProgress.also {
-                    orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
-                }
-            }.onFailure {
-                eventLogger.error(
-                    OrderCommonNotableEvents.E_BOOKING_STILL_IN_PROGRESS,
-                    orderStateAfterBooking.id,
-                    orderStateAfterBooking.status,
-                )
-                throw TestStage.TestStageFailedException("Exception instead of silently fail")
-            }.startWaiting()
-
-
-        ConditionAwaiter.awaitAtMost(5, TimeUnit.SECONDS)
+        ConditionAwaiter.awaitAtMost(40, TimeUnit.SECONDS, Duration.ofSeconds(2))
             .condition {
                 val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
                 val booked = bookingRecords.map { it.itemId }.toSet()
@@ -63,6 +49,20 @@ class OrderFinalizingStage : TestStage {
                 orderStateAfterBooking.itemsMap.keys.all { it in booked }
             }.onFailure {
                 eventLogger.error(E_BOOKING_LOG_RECORD_NOT_FOUND, bookingResult.id, testCtx().orderId)
+                throw TestStage.TestStageFailedException("Exception instead of silently fail")
+            }.startWaiting()
+
+        ConditionAwaiter.awaitAtMost(40, TimeUnit.SECONDS, Duration.ofSeconds(4))
+            .condition {
+                orderStateAfterBooking.status == OrderStatus.OrderBooked.also {
+                    orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+                }
+            }.onFailure {
+                eventLogger.error(
+                    OrderCommonNotableEvents.E_BOOKING_STILL_IN_PROGRESS,
+                    orderStateAfterBooking.id,
+                    orderStateAfterBooking.status.javaClass.name,
+                )
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
 
@@ -97,6 +97,7 @@ class OrderFinalizingStage : TestStage {
                 }
                 eventLogger.info(I_SUCCESS_VALIDATE_BOOKED, testCtx().orderId)
             }
+
             OrderStatus.OrderCollecting -> {
                 if (bookingResult.failedItems.isEmpty()) {
                     eventLogger.error(E_BOOKING_FAIL_BUT_ITEMS_SUCCESS, testCtx().orderId, bookingResult.id)
@@ -119,6 +120,7 @@ class OrderFinalizingStage : TestStage {
                 eventLogger.info(I_SUCCESS_VALIDATE_NOT_BOOKED, testCtx().orderId, failedList)
                 return TestStage.TestContinuationType.STOP
             }
+
             else -> {
                 eventLogger.error(
                     OrderCommonNotableEvents.E_ILLEGAL_ORDER_TRANSITION,

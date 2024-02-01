@@ -2,12 +2,14 @@ package com.itmo.microservices.demo.externalsys.controller
 
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.common.OngoingWindow
-import com.itmo.microservices.demo.common.RateLimiter
 import com.itmo.microservices.demo.common.metrics.Metrics
+import io.github.resilience4j.ratelimiter.RateLimiterConfig
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -34,28 +36,84 @@ class ExternalSystemController(
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
-            arrayOf(1, 2).forEach {
-                val basePrice = 1
-                val accName = "default-${it}"
-                accounts["${service.name}-$accName"] = Account(
-                    service.name,
-                    "default",
-                    null,
-                    slo = Slo(),
-                    rateLimiter = RateLimiter(3, TimeUnit.SECONDS),
-                    window = OngoingWindow(12),
-                    price = basePrice * it
-                )
-            }
+            // default 1 -> almost no restrictions
+            val basePrice = 100
+            val accName1 = "default-1"
+            accounts["${service.name}-$accName1"] = Account(
+                service.name,
+                accName1,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 1000),
+                rateLimiter = makeRateLimiter(accName1, 100, TimeUnit.SECONDS),
+                window = OngoingWindow(1000),
+                price = basePrice
+            )
+
+            // default 2 -> almost no restrictions, but more expensive and more time to process (10s)
+            val accName2 = "default-2"
+            accounts["${service.name}-$accName2"] = Account(
+                service.name,
+                accName2,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName2, 100, TimeUnit.SECONDS),
+                window = OngoingWindow(1000),
+                price = (basePrice * 0.7).toInt()
+            )
+
+            // default 3 -> like default 2, but rate limit is 7 per second
+            val accName3 = "default-3"
+            accounts["${service.name}-$accName3"] = Account(
+                service.name,
+                accName3,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName3, 7, TimeUnit.SECONDS),
+                window = OngoingWindow(1000),
+                price = (basePrice * 0.4).toInt()
+            )
+
+            // default 4 -> like default 3, but window size is 15
+            val accName4 = "default-4"
+            accounts["${service.name}-$accName4"] = Account(
+                service.name,
+                accName4,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName4, 7, TimeUnit.SECONDS),
+                window = OngoingWindow(15),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            // default 4.2 -> same as default 4, but a bit more expensive
+            val accName42 = "default-42"
+            accounts["${service.name}-$accName42"] = Account(
+                service.name,
+                accName42,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName42, 7, TimeUnit.SECONDS),
+                window = OngoingWindow(15),
+                price = (basePrice * 0.35).toInt()
+            )
+
+            // default 5 -> like default 4, but fullBlockingProbability is 0.01
+            val accName5 = "default-5"
+            accounts["${service.name}-$accName5"] = Account(
+                service.name,
+                accName5,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.01),
+                rateLimiter = makeRateLimiter(accName5, 7, TimeUnit.SECONDS),
+                window = OngoingWindow(15),
+                price = (basePrice * 0.3).toInt()
+            )
         }
     }
 
     @PostMapping("/account")
     fun createAccount(@RequestBody request: AccountDto) {
-        val rLimiter = RateLimiter(
-            request.slo.tpsec ?: request.slo.tpmin ?: rateLimitDefault,
-            if (request.slo.tpsec != null) TimeUnit.SECONDS else if (request.slo.tpmin != null) TimeUnit.MINUTES else rateLimitDefaultUnit
-        )
+        val rateLimiter = makeRateLimiter("rateLimiter:${request.accountName}", request.slo.tpsec ?: request.slo.tpmin ?: rateLimitDefault, if (request.slo.tpsec != null) TimeUnit.SECONDS else TimeUnit.MINUTES)
 
         val window = OngoingWindow(request.slo.winSize)
 
@@ -64,7 +122,7 @@ class ExternalSystemController(
             request.accountName,
             request.callbackPath,
             slo = Slo(request.slo.upperLimitInvocationMillis),
-            rateLimiter = rLimiter,
+            rateLimiter = rateLimiter,
             window = window,
             price = request.price
         )
@@ -90,13 +148,14 @@ class ExternalSystemController(
         val accountName: String,
         val callbackPath: String?,
         val slo: Slo = Slo(),
-        val rateLimiter: RateLimiter,
+        val rateLimiter: io.github.resilience4j.ratelimiter.RateLimiter,
         val window: OngoingWindow,
         val price: Int,
     )
 
     data class Slo(
         val upperLimitInvocationMillis: Long = 10_000,
+        val fullBlockingProbability: Double = 0.0,
     )
 
     @PostMapping("/process")
@@ -116,7 +175,7 @@ class ExternalSystemController(
 
         logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
 
-        if (!account.rateLimiter.tick()) {
+        if (!account.rateLimiter.acquirePermission()) {
             return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
         }
         when (val res = account.window.putIntoWindow()) {
@@ -144,4 +203,16 @@ class ExternalSystemController(
         val result: Boolean,
         val message: String? = null,
     )
+}
+
+fun makeRateLimiter(accountName: String, rate: Int, timeUnit: TimeUnit = TimeUnit.SECONDS): io.github.resilience4j.ratelimiter.RateLimiter {
+    val config = RateLimiterConfig.custom()
+        .limitRefreshPeriod(if (timeUnit == TimeUnit.SECONDS) Duration.ofSeconds(1) else Duration.ofMinutes(1) )
+        .limitForPeriod(rate)
+        .timeoutDuration(Duration.ofMillis(5))
+        .build()
+
+    val rateLimiterRegistry = RateLimiterRegistry.of(config)
+
+    return rateLimiterRegistry.rateLimiter("rateLimiter:${accountName}")
 }

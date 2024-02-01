@@ -6,9 +6,12 @@ import com.itmo.microservices.demo.bombardier.flow.CoroutineLoggingFactory
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderCollectingNotableEvents.*
+import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
+import java.time.Duration.ofSeconds
 import java.util.*
+import java.util.concurrent.TimeUnit.SECONDS
 import kotlin.random.Random
 
 @Component
@@ -35,19 +38,32 @@ class OrderCollectingStage : TestStage {
             externalServiceApi.putItemToOrder(testCtx().userId!!, testCtx().orderId!!, itemToAdd.id, amount)
         }
 
-        val finalOrder = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
-        val orderMap = finalOrder.itemsMap.mapKeys { it.key }
-        itemIds.forEach { (id, count) ->
-            if (!orderMap.containsKey(id)) {
-                eventLogger.error(E_ADD_ITEMS_FAIL, id, count, 0)
-                return TestStage.TestContinuationType.FAIL
-            }
-            if (orderMap[id] != count) {
-                eventLogger.error(E_ADD_ITEMS_FAIL, id, count, orderMap[id])
-                return TestStage.TestContinuationType.FAIL
-            }
-        }
+//        val orderMap = finalOrder.itemsMap.mapKeys { it.key }
 
+        ConditionAwaiter.awaitAtMost(20, SECONDS, ofSeconds(2))
+            .condition {
+                val orderMap = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).itemsMap.mapKeys { it.key }
+
+                itemIds.all { (id, count) ->
+                    orderMap.containsKey(id) && orderMap[id] == count
+                }
+            }.onFailure {
+                eventLogger.error(E_ADD_ITEMS_FAIL, testCtx().orderId)
+                throw TestStage.TestStageFailedException("Exception instead of silently fail")
+            }.startWaiting()
+
+//        itemIds.forEach { (id, count) ->
+//            if (!orderMap.containsKey(id)) {
+//                eventLogger.error(E_ADD_ITEMS_FAIL, id, count, 0)
+//                return TestStage.TestContinuationType.FAIL
+//            }
+//            if (orderMap[id] != count) {
+//                eventLogger.error(E_ADD_ITEMS_FAIL, id, count, orderMap[id])
+//                return TestStage.TestContinuationType.FAIL
+//            }
+//        }
+
+        val finalOrder = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
         val finalNumOfItems = finalOrder.itemsMap.size
         if (finalNumOfItems != itemIds.size) {
             eventLogger.error(E_ITEMS_MISMATCH, finalNumOfItems, itemIds.size)

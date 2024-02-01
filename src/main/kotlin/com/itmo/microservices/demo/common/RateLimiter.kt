@@ -23,6 +23,7 @@ class RateLimiter(
 
     private val releaseJob = rateLimiterScope.launch {
         while (true) {
+            val start = System.currentTimeMillis()
             val permitsToRelease = rate - semaphore.availablePermits
             repeat(permitsToRelease) {
                 runCatching {
@@ -30,9 +31,43 @@ class RateLimiter(
                 }.onFailure { th -> logger.error("Failed while releasing permits", th) }
             }
             logger.debug("Released $permitsToRelease permits")
-            delay(timeUnit.toMillis(1))
+            delay(timeUnit.toMillis(1) - (System.currentTimeMillis() - start))
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 
     fun tick() = semaphore.tryAcquire()
+}
+
+class CountingRateLimiter(
+    private val rate: Int,
+    private val timeUnit: TimeUnit = TimeUnit.SECONDS
+) {
+    companion object {
+        private val logger: Logger = LoggerFactory.getLogger(CountingRateLimiter::class.java)
+    }
+
+    var internal = RlInternal()
+
+    @Synchronized
+    fun tick(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - internal.segmentStart > timeUnit.toMillis(1)) {
+            internal = RlInternal(now, rate - 1)
+            return true
+        } else {
+            if (internal.permits > 0) {
+                internal.permits--
+                return true
+            } else {
+                return false
+            }
+        }
+    }
+
+//    fun tickBlocking() = semaphore.acquire()
+
+    class RlInternal(
+        var segmentStart: Long = System.currentTimeMillis(),
+        var permits: Int = 0,
+    )
 }

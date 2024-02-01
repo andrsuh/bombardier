@@ -6,7 +6,7 @@ enum class OrderSettingsDeliveryNotableEvents(private val template: String) : No
 
     I_CHOOSE_SLOT("Choose delivery slot for order {}"),
     I_SKIP_SETTING_SLOT("Skip setting delivery slot for order {}"),
-    E_CHOOSE_SLOT_FAIL("Delivery slot was not chosen. Expected: {}, Actual: {}"),
+    E_CHOOSE_SLOT_FAIL("Delivery slot was not chosen. DeliveryId: {}. orderId: {}"),
     I_CHOOSE_SLOT_SUCCESS("Successfully choose delivery slot: '{} sec' for order {}");
 
 

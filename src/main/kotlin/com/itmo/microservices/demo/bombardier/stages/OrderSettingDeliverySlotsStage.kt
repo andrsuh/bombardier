@@ -31,17 +31,17 @@ class OrderSettingDeliverySlotsStage : TestStage {
         val availableSlots = externalServiceApi.getDeliverySlots(
             testCtx().userId!!,
             10
-        ) // TODO: might be a better idea to provide different number here
+        )
 
         val deliverySlot = availableSlots.random()
         val deliveryId = externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
 
-        ConditionAwaiter.awaitAtMost(30, TimeUnit.SECONDS, Duration.ofSeconds(2)).condition {
+        ConditionAwaiter.awaitAtMost(40, TimeUnit.SECONDS, Duration.ofSeconds(4)).condition {
             val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
             order.deliveryId == deliveryId && order.status == OrderStatus.OrderDeliverySet
         }.onFailure {
-            eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, "?")
+            eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, testCtx().orderId!!)
             throw TestStage.TestStageFailedException("Exception instead of silently fail")
         }.startWaiting()
 

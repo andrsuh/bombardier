@@ -18,6 +18,7 @@ import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
@@ -84,7 +85,11 @@ open class ExternalServiceApiCommunicator(
 
     suspend fun execute(method: String, url: String) = execute(method, url) {}
 
-    suspend fun execute(externalApiMethod: String, url: String, builderContext: CustomRequestBuilder.() -> Unit): TrimmedResponse {
+    suspend fun execute(
+        externalApiMethod: String,
+        url: String,
+        builderContext: CustomRequestBuilder.() -> Unit
+    ): TrimmedResponse {
         val requestBuilder = CustomRequestBuilder(descriptor.url).apply {
             _url(url)
             builderContext(this)
@@ -169,14 +174,7 @@ open class ExternalServiceApiCommunicator(
         @Deprecated("Not allowed to use")
         override fun url(url: String) = throw IllegalStateException("Not allowed to call this function")
 
-//        fun jsonPost(ctx: JSONObject.() -> Unit) {
-//            val obj = JSONObject()
-//            ctx(obj)
-//            post(obj.toRequestBody())
-//        }
-
         fun jsonPost(vararg items: Pair<String, String>) {
-//            post(JSONObject().withItems(*items).toRequestBody())
             post(RequestBody.create(JSON, mapper.writeValueAsString(items.toMap())));
         }
 
@@ -199,9 +197,11 @@ class CallContext(
 
 class HttpClientsManager {
     companion object {
-        private val CALL_TIMEOUT = Duration.ofSeconds(40)
-        private val READ_TIMEOUT = Duration.ofSeconds(30)
-        private val WRITE_TIMEOUT = Duration.ofSeconds(30)
+        private val CALL_TIMEOUT = Duration.ofSeconds(60)
+        private val READ_TIMEOUT = Duration.ofSeconds(60)
+        private val WRITE_TIMEOUT = Duration.ofSeconds(60)
+        private const val NUMBER_OF_CLIENTS = 8
+        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 8
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
@@ -210,21 +210,25 @@ class HttpClientsManager {
     private val dispatchers = ConcurrentHashMap<Int, Dispatcher>(25)
 
     fun getClient(testIdentifier: String): OkHttpClient {
-        val hash = abs(testIdentifier.hashCode()) % 25
+        val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
 
         val dispatcher = dispatchers.computeIfAbsent(hash) {
-            Executors.newFixedThreadPool(8, NamedThreadFactory("external-service-executor-$hash")).also {
+            Executors.newFixedThreadPool(
+                NUMBER_OF_THREADS_PER_EXECUTOR,
+                NamedThreadFactory("external-service-executor-$hash")
+            ).also {
                 Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
             }.let {
                 Dispatcher(it)
             }
         }
 
-        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % 25) {
+        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS) {
             logger.info("Creating new http client for test $testIdentifier")
             OkHttpClient.Builder().run {
                 dispatcher(dispatcher)
-                protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+//                protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+                protocols(mutableListOf(Protocol.H2_PRIOR_KNOWLEDGE))
                 callTimeout(CALL_TIMEOUT)
                 readTimeout(READ_TIMEOUT)
                 writeTimeout(WRITE_TIMEOUT)
@@ -267,7 +271,7 @@ class HttpClientsManager {
                         }
                     }
                 })
-                // connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
+                connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
                 build()
             }
         }

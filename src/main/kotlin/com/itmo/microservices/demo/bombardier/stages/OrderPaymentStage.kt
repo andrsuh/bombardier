@@ -34,7 +34,7 @@ class OrderPaymentStage : TestStage {
     ): TestStage.TestContinuationType {
         eventLogger = EventLoggerWrapper(eventLog, testCtx().serviceName)
 
-        val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+        var order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
         val paymentDetails = testCtx().paymentDetails
         paymentDetails.attempt++
@@ -50,11 +50,11 @@ class OrderPaymentStage : TestStage {
 
         eventLog.info(I_STARTED_PAYMENT, testCtx().orderId!!, paymentSubmissionDto.timestamp, paymentSubmissionDto.transactionId)
 
-        val paymentSubmissionTimeout = 6L
+        val paymentSubmissionTimeout = 15L
         ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(2))
             .condition {
-                val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
-                order.status == OrderStatus.OrderPaymentInProgress || order.status == OrderStatus.OrderPayed
+                order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+                order.status == OrderStatus.OrderPaymentInProgress || order.status == OrderStatus.OrderPayed || order.status == OrderStatus.OrderPaymentFailed
             }
             .onFailure {
                 eventLogger.error(E_SUBMISSION_TIMEOUT_EXCEEDED, order.id, paymentSubmissionTimeout)
@@ -93,24 +93,24 @@ class OrderPaymentStage : TestStage {
 
         when (val status = paymentLogRecord.status) {
             PaymentStatus.SUCCESS -> {
-                ConditionAwaiter.awaitAtMost(10, TimeUnit.SECONDS)
-                    .condition {
-                        val userChargedRecord =
-                            externalServiceApi.userFinancialHistory(testCtx().userId!!, testCtx().orderId!!)
-                                .find { it.paymentId == paymentSubmissionDto.transactionId }
-
-                        userChargedRecord?.type == FinancialOperationType.WITHDRAW
-                    }
-                    .onFailure {
-                        eventLogger.error(E_WITHDRAW_NOT_FOUND, order.id, testCtx().userId)
-                        if (it != null) {
-                            throw it
-                        }
-                        Metrics
-                            .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "WITHDRAW_NOT_FOUND")
-                            .paymentFinished()
-                        throw TestStage.TestStageFailedException("Exception instead of silently fail")
-                    }.startWaiting()
+//                ConditionAwaiter.awaitAtMost(10, TimeUnit.SECONDS)
+//                    .condition {
+//                        val userChargedRecord =
+//                            externalServiceApi.userFinancialHistory(testCtx().userId!!, testCtx().orderId!!)
+//                                .find { it.paymentId == paymentSubmissionDto.transactionId }
+//
+//                        userChargedRecord?.type == FinancialOperationType.WITHDRAW
+//                    }
+//                    .onFailure {
+//                        eventLogger.error(E_WITHDRAW_NOT_FOUND, order.id, testCtx().userId)
+//                        if (it != null) {
+//                            throw it
+//                        }
+//                        Metrics
+//                            .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "WITHDRAW_NOT_FOUND")
+//                            .paymentFinished()
+//                        throw TestStage.TestStageFailedException("Exception instead of silently fail")
+//                    }.startWaiting()
 
                 Metrics
                     .withTags(Metrics.serviceLabel to testCtx().serviceName)

@@ -127,7 +127,7 @@ sealed class OrderStatus {
     object OrderBookingInProgress : OrderStatus()
     object OrderDeliverySet : OrderStatus()
     object OrderRefund : OrderStatus()
-    object OrderCompleted : OrderStatus()
+    object OrderPaymentFailed : OrderStatus()
     object OrderPaymentInProgress : OrderStatus()
     object OrderPayed : OrderStatus()
     class OrderInDelivery(val deliveryStartTime: Long) : OrderStatus()
@@ -144,6 +144,7 @@ class OrderStatusDeserializer : JsonDeserializer<OrderStatus>() {
             "BOOKED" -> OrderStatus.OrderBooked
             "DELIVERY_SET" -> OrderStatus.OrderDeliverySet
             "PAYMENT_IN_PROGRESS" -> OrderStatus.OrderPaymentInProgress
+            "PAYMENT_FAILED" -> OrderStatus.OrderPaymentFailed
             "PAYED" -> OrderStatus.OrderPayed
             "SHIPPING" -> OrderStatus.OrderInDelivery(0)
             "REFUND" -> OrderStatus.OrderRefund

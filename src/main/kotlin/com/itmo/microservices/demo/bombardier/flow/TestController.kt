@@ -126,7 +126,7 @@ class TestController(
 
         val testStartTime = System.currentTimeMillis()
         coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
-            delay(Random.nextLong(15)) // to distribute load more evenly
+            delay(Random.nextLong(60_000)) // to distribute load more evenly
 
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
