@@ -39,7 +39,7 @@ class OrderDeliveryStage : TestStage {
             return TestStage.TestContinuationType.FAIL
         }
 
-        ConditionAwaiter.awaitAtMost(orderBeforeDelivery.deliveryDuration.toSeconds() + 5, TimeUnit.SECONDS)
+        ConditionAwaiter.awaitAtMost(Duration.ofMillis(orderBeforeDelivery.deliveryDuration).toSeconds() + 5, TimeUnit.SECONDS)
             .condition {
                 val updatedOrder = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
                 updatedOrder.status is OrderStatus.OrderDelivered ||
@@ -67,7 +67,7 @@ class OrderDeliveryStage : TestStage {
                         return TestStage.TestContinuationType.FAIL
                     }
                     val expectedDeliveryTime = Duration.ofMillis(orderBeforeDelivery.paymentHistory.last().timestamp)
-                        .plus(Duration.ofSeconds(orderBeforeDelivery.deliveryDuration.toSeconds()))
+                        .plus(Duration.ofMillis(orderBeforeDelivery.deliveryDuration))
                     if (orderAfterDelivery.status.deliveryFinishTime > expectedDeliveryTime.toMillis()) {
                         eventLogger.error(
                             E_DELIVERY_LATE,

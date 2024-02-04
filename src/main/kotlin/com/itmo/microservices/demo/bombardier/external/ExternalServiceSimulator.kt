@@ -8,13 +8,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.net.URL
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
-//@Component
 class ExternalServiceSimulator(
     private val orderStorage: OrderStorage,
     private val userStorage: UserStorage,
@@ -41,10 +39,11 @@ class ExternalServiceSimulator(
         TODO("Not yet implemented")
     }
 
-    override suspend fun createOrder(userId: UUID): Order { // todo sukhoa userId not used
+    override suspend fun createOrder(userId: UUID): Order {
         return orderStorage.create(
             Order(
                 id = UUID.randomUUID(),
+                userId = userId,
                 timeCreated = System.currentTimeMillis(),
                 itemsMap = mutableMapOf(),
                 paymentHistory = mutableListOf()
@@ -60,19 +59,19 @@ class ExternalServiceSimulator(
         TODO("Not yet implemented")
     }
 
-    override suspend fun getDeliverySlots(userId: UUID, number: Int): List<Duration> {
-        return mutableListOf<Duration>().also {
+    override suspend fun getDeliverySlots(userId: UUID): List<Long> {
+        return mutableListOf<Long>().also {
             for (i in 0..Random.nextInt(1, 100)) {
-                it.add(Duration.ofSeconds(Random.nextLong(1, 20)))
+                it.add(Random.nextLong(1, 20))
             }
         }
     }
 
-    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): UUID {
+    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Long): UUID {
         orderStorage.getAndUpdate(orderId) { order ->
             order.copy(deliveryDuration = slot)
         }
-        return UUID.randomUUID() // todo sukhoa shit
+        return UUID.randomUUID()
     }
 
     override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
@@ -125,14 +124,14 @@ class ExternalServiceSimulator(
         }
         val orderBeforeDelivery = getOrder(userId, orderId)
         CoroutineScope(Dispatchers.Default).launch {
-            delay(Random.nextLong(orderBeforeDelivery.deliveryDuration!!.toMillis() + 1_000))
+            delay(Random.nextLong(orderBeforeDelivery.deliveryDuration!! + 1_000))
             chooseDeliveryResult(userId, orderId)
         }
     }
 
     private suspend fun chooseDeliveryResult(userId: UUID, orderId: UUID) {
         val order = getOrder(userId, orderId)
-        val expectedDeliveryTime = Duration.ofSeconds(order.deliveryDuration!!.toMillis())
+        val expectedDeliveryTime = Duration.ofSeconds(order.deliveryDuration!!)
             .plus(Duration.ofMillis(order.paymentHistory.last().timestamp))
         if (System.currentTimeMillis() < expectedDeliveryTime.toMillis()) {
             orderStorage.getAndUpdate(orderId) {

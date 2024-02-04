@@ -41,7 +41,7 @@ class OrderFinalizingStage : TestStage {
 
         var orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
-        ConditionAwaiter.awaitAtMost(40, TimeUnit.SECONDS, Duration.ofSeconds(2))
+        ConditionAwaiter.awaitAtMost(80, TimeUnit.SECONDS, Duration.ofSeconds(6))
             .condition {
                 val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
                 val booked = bookingRecords.map { it.itemId }.toSet()
@@ -52,16 +52,18 @@ class OrderFinalizingStage : TestStage {
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
 
-        ConditionAwaiter.awaitAtMost(40, TimeUnit.SECONDS, Duration.ofSeconds(4))
+        ConditionAwaiter.awaitAtMost(80, TimeUnit.SECONDS, Duration.ofSeconds(6))
             .condition {
                 orderStateAfterBooking.status == OrderStatus.OrderBooked.also {
                     orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
                 }
             }.onFailure {
+                if (orderStateAfterBooking.status == OrderStatus.OrderBooked) return@onFailure
+
                 eventLogger.error(
                     OrderCommonNotableEvents.E_BOOKING_STILL_IN_PROGRESS,
                     orderStateAfterBooking.id,
-                    orderStateAfterBooking.status.javaClass.name,
+                    orderStateAfterBooking.status.javaClass.simpleName,
                 )
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()

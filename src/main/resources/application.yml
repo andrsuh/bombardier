@@ -4,6 +4,8 @@ spring:
 
 server:
   port: 1234
+  http2:
+    enabled: true
   error:
     include-exception: false
     include-message: always

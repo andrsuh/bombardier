@@ -200,7 +200,7 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(60)
         private val READ_TIMEOUT = Duration.ofSeconds(60)
         private val WRITE_TIMEOUT = Duration.ofSeconds(60)
-        private const val NUMBER_OF_CLIENTS = 8
+        private const val NUMBER_OF_CLIENTS = 1
         private const val NUMBER_OF_THREADS_PER_EXECUTOR = 8
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
@@ -219,7 +219,10 @@ class HttpClientsManager {
             ).also {
                 Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
             }.let {
-                Dispatcher(it)
+                Dispatcher(it).also {
+                    it.maxRequests = 128
+                    it.maxRequestsPerHost = 32
+                }
             }
         }
 
@@ -227,7 +230,7 @@ class HttpClientsManager {
             logger.info("Creating new http client for test $testIdentifier")
             OkHttpClient.Builder().run {
                 dispatcher(dispatcher)
-//                protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+                // protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
                 protocols(mutableListOf(Protocol.H2_PRIOR_KNOWLEDGE))
                 callTimeout(CALL_TIMEOUT)
                 readTimeout(READ_TIMEOUT)

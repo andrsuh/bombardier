@@ -28,10 +28,7 @@ class OrderSettingDeliverySlotsStage : TestStage {
         eventLogger.info(I_CHOOSE_SLOT, testCtx().orderId)
 
 
-        val availableSlots = externalServiceApi.getDeliverySlots(
-            testCtx().userId!!,
-            10
-        )
+        val availableSlots = externalServiceApi.getDeliverySlots(testCtx().userId!!)
 
         val deliverySlot = availableSlots.random()
         val deliveryId = externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
@@ -45,7 +42,7 @@ class OrderSettingDeliverySlotsStage : TestStage {
             throw TestStage.TestStageFailedException("Exception instead of silently fail")
         }.startWaiting()
 
-        eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot.seconds, testCtx().orderId)
+        eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot, testCtx().orderId)
         return TestStage.TestContinuationType.CONTINUE
     }
 }

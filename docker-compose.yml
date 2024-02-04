@@ -1,17 +1,18 @@
 version: "3.8"
 
 services:
-  bombardier:
-    image: ghcr.io/andrsuh/bombardier:${BOMBARDIER_VERSION:-latest}
-    ports:
-      - "1234:1234"
-    restart: unless-stopped
-    networks:
-      - external_network
-    environment:
-      - TEST_SERVICE_IP=host.docker.internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+#  советую запускать сервис через IDE, поскольку так он более производителен. Однако, его можно запустить и через docker-compose, раскомментировав следующие строки
+#  bombardier:
+#    image: ghcr.io/andrsuh/bombardier:${BOMBARDIER_VERSION:-latest}
+#    ports:
+#      - "1234:1234"
+#    restart: unless-stopped
+#    networks:
+#      - external_network
+#    environment:
+#      - TEST_SERVICE_IP=host.docker.internal
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
 
   prometheus:
     image: quay.io/prometheus/prometheus:v2.32.0

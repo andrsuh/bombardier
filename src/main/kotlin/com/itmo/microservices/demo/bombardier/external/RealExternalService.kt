@@ -7,7 +7,6 @@ import com.itmo.microservices.demo.bombardier.external.communicator.UserAwareExt
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
 import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
 import org.springframework.http.HttpStatus
-import java.time.Duration
 import java.util.*
 
 class UserNotAuthenticatedException(username: String) : Exception(username)
@@ -49,7 +48,7 @@ class RealExternalService(
 
     override suspend fun userFinancialHistory(userId: UUID, orderId: UUID?): List<UserAccountFinancialLogRecord> {
         val session = getUserSession(userId)
-        val url = if (orderId != null) "/finlog?orderId=$orderId" else "/finlog"
+        val url = if (orderId != null) "orders/${orderId}/finlog" else "/finlog"
 
         return communicator.executeWithAuthAndDeserialize("userFinancialHistory", url, session)
     }
@@ -57,7 +56,7 @@ class RealExternalService(
     override suspend fun createOrder(userId: UUID): Order {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("createOrder", "/orders", session) {
+        return communicator.executeWithAuthAndDeserialize("createOrder", "/orders?userId=${userId}", session) {
             post()
         }
     }
@@ -102,18 +101,18 @@ class RealExternalService(
         }
     }
 
-    override suspend fun getDeliverySlots(userId: UUID, number: Int): List<Duration> {
+    override suspend fun getDeliverySlots(userId: UUID): List<Long> {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("getDeliverySlots", "/delivery/slots?number=$number", session)
+        return communicator.executeWithAuthAndDeserialize("getDeliverySlots", "/orders/delivery/slots", session)
     }
 
-    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Duration): UUID {
+    override suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Long): UUID {
         val session = getUserSession(userId)
 
         return communicator.executeWithAuthAndDeserialize(
             "setDeliveryTime",
-            "/orders/$orderId/delivery?slot=${slot.seconds}",
+            "/orders/$orderId/delivery?slot=${slot}",
             session
         ) {
             post()

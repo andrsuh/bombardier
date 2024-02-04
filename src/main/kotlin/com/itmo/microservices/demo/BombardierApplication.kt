@@ -1,12 +1,11 @@
 package com.itmo.microservices.demo
 
-import kotlinx.coroutines.runBlocking
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 
 
 @SpringBootApplication
-class DemoServiceApplication {
+class BombardierApplication {
 
 }
 
@@ -14,5 +13,5 @@ fun main(args: Array<String>) {
     if (System.getProperty("is.local", "false").toBoolean()) {
         println("Running locally")
     }
-    runApplication<DemoServiceApplication>(*args)
+    runApplication<BombardierApplication>(*args)
 }
