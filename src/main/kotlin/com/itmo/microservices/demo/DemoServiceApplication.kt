@@ -5,11 +5,11 @@ import org.springframework.boot.runApplication
 
 
 @SpringBootApplication
-class BombardierApplicationKt
+class DemoServiceApplication
 
 fun main(args: Array<String>) {
     if (System.getProperty("is.local", "false").toBoolean()) {
         println("Running locally")
     }
-    runApplication<BombardierApplicationKt>(*args)
+    runApplication<DemoServiceApplication>(*args)
 }

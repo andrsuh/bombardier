@@ -8,7 +8,7 @@
 2. После успешного запуска Grafana будет доступна на `http://localhost:3000/`. Пароль для админа указан указан при создании сервиса (по умолчанию admin/quipy). 
 3. Prometheus доступен тут - `http://localhost:9090/`. Grafana создаст папку grafana/data, в которой будет хранить свои данные. Prometheus - prometheus/data
 3. После создания обоих docker сервисов, Grafana должна создаться DataSource `http://localhost:3000/connections/datasources` и дашборд `http://localhost:3000/dashboards`.
-4. Запустите `BombardierApplication.kt`
+4. Запустите `DemoServiceApplication.kt`
 5. Запустите тестируемый сервис
 6. Запустите `run_tests.http`. Это запустит исполнение тестов бомбардира. Подправьте параметы, если нужно
 7. Смотрите на метрики и наслаждайтесь
