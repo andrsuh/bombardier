@@ -3,7 +3,7 @@ Content-Type: application/json
 
 {
   "serviceName": "test",
-  "usersCount": 200,
-  "parallelProcCount": 200,
-  "testCount": 200
+  "usersCount": 1000,
+  "parallelProcCount": 1000,
+  "testCount": 5000
 }
