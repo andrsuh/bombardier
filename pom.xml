@@ -12,7 +12,7 @@
 
     <groupId>com.itmo.microservices</groupId>
     <artifactId>bombardier</artifactId>
-    <version>4.0.29</version>
+    <version>4.0.30</version>
     <name>bombardier</name>
     <description>Trying to kill your PPO projects</description>
 
@@ -23,7 +23,7 @@
         <guava.version>30.1.1-jre</guava.version>
         <jjwt.version>0.9.1</jjwt.version>
         <common-lib.version>0.8.0-SNAPSHOT</common-lib.version>
-        <resilience4jVersion>2.2.0</resilience4jVersion>
+        <resilience4jVersion>1.6.0</resilience4jVersion>
 
         <buildnumber-maven-plugin.version>1.4</buildnumber-maven-plugin.version>
         <jib-maven-plugin.version>2.8.0</jib-maven-plugin.version>
