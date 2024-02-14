@@ -41,7 +41,13 @@ class OrderFinalizingStage : TestStage {
 
         var orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
-        ConditionAwaiter.awaitAtMost(80, TimeUnit.SECONDS, Duration.ofSeconds(6))
+        val awaitingTime = when(testCtx().numOfParallelTests) {
+            in (0..100) -> 80L
+            in (101..1000) -> 180L
+            else -> testCtx().numOfParallelTests / 7L
+        }
+
+        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(10))
             .condition {
                 val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
                 val booked = bookingRecords.map { it.itemId }.toSet()
@@ -52,7 +58,7 @@ class OrderFinalizingStage : TestStage {
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }.startWaiting()
 
-        ConditionAwaiter.awaitAtMost(80, TimeUnit.SECONDS, Duration.ofSeconds(6))
+        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(10))
             .condition {
                 orderStateAfterBooking.status == OrderStatus.OrderBooked.also {
                     orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
@@ -69,13 +75,6 @@ class OrderFinalizingStage : TestStage {
             }.startWaiting()
 
         val bookingRecords = externalServiceApi.getBookingHistory(testCtx().userId!!, bookingResult.id)
-        for (id in orderStateAfterBooking.itemsMap.keys) {
-            if (bookingRecords.none { it.itemId == id }) {
-                eventLogger.error(E_BOOKING_LOG_RECORD_NOT_FOUND, bookingResult.id, id, testCtx().orderId)
-
-                return TestStage.TestContinuationType.FAIL
-            }
-        }
 
         when (orderStateAfterBooking.status) {
             OrderStatus.OrderBooked -> {

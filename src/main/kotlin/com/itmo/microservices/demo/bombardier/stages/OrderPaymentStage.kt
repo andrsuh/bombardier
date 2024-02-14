@@ -41,7 +41,7 @@ class OrderPaymentStage : TestStage {
 
         eventLogger.info(I_PAYMENT_STARTED, order, paymentDetails.attempt)
 
-        paymentDetails.startedAt = System.currentTimeMillis()
+//        paymentDetails.startedAt = System.currentTimeMillis()
 
         val paymentSubmissionDto = externalServiceApi.payOrder(
             testCtx().userId!!,
@@ -70,19 +70,24 @@ class OrderPaymentStage : TestStage {
         val startWaitingPayment = System.currentTimeMillis()
         eventLog.info(I_START_WAITING_FOR_PAYMENT_RESULT, testCtx().orderId!!, paymentSubmissionDto.transactionId, startWaitingPayment - paymentSubmissionDto.timestamp)
 
-        val paymentTimeout = 80L
-        ConditionAwaiter.awaitAtMost(paymentTimeout, TimeUnit.SECONDS, Duration.ofSeconds(4))
+        val awaitingTime = when(testCtx().numOfParallelTests) {
+            in (0..100) -> 80L
+            in (101..1000) -> 180L
+            else -> testCtx().numOfParallelTests / 7L
+        }
+
+        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(4))
             .condition {
                 externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
                     .any { it.transactionId == paymentSubmissionDto.transactionId }
             }
             .onFailure {
-                eventLogger.error(E_PAYMENT_TIMEOUT_EXCEEDED, order.id, paymentTimeout)
+                eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, order.id)
                 if (it != null) {
                     throw it
                 }
                 Metrics
-                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "TIMEOUT")
+                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "NO_OUTCOME")
                     .paymentFinished()
 
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
@@ -91,8 +96,17 @@ class OrderPaymentStage : TestStage {
         val paymentLogRecord = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
             .find { it.transactionId == paymentSubmissionDto.transactionId }!!
 
+        val paymentTimeout = 80L
         when (val status = paymentLogRecord.status) {
             PaymentStatus.SUCCESS -> {
+                if (paymentLogRecord.timestamp - paymentSubmissionDto.timestamp > Duration.ofSeconds(paymentTimeout).toMillis()) {
+                    eventLogger.error(E_PAYMENT_TIMEOUT_EXCEEDED, order.id, paymentTimeout, Duration.ofMillis(paymentLogRecord.timestamp - paymentSubmissionDto.timestamp))
+                    Metrics
+                        .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "TIMEOUT")
+                        .paymentFinished()
+                    return TestStage.TestContinuationType.FAIL
+                }
+
 //                ConditionAwaiter.awaitAtMost(10, TimeUnit.SECONDS)
 //                    .condition {
 //                        val userChargedRecord =
@@ -120,7 +134,7 @@ class OrderPaymentStage : TestStage {
                     .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "SUCCESS", paymentFailureReason to "")
                     .paymentFinished()
 
-                paymentDetails.finishedAt = System.currentTimeMillis()
+//                paymentDetails.finishedAt = System.currentTimeMillis()
                 eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
 
                 return TestStage.TestContinuationType.CONTINUE
@@ -131,7 +145,7 @@ class OrderPaymentStage : TestStage {
 //                    return TestStage.TestContinuationType.RETRY
 //                } else {
                     eventLogger.error(E_PAYMENT_FAILED, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
-                    paymentDetails.failedAt = System.currentTimeMillis()
+//                    paymentDetails.failedAt = System.currentTimeMillis()
                     Metrics
                         .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SHOP_REJECTED")
                         .paymentFinished()

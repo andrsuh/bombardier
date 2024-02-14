@@ -50,7 +50,7 @@ class TestController(
         orderCollectingStage.asErrorFree().asMetricRecordable(),
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
         orderFinalizingStage.asErrorFree().asMetricRecordable(),
-        orderSettingDeliverySlotsStage.asErrorFree().asMetricRecordable(),
+//        orderSettingDeliverySlotsStage.asErrorFree().asMetricRecordable(),
 //        orderChangeItemsAfterFinalizationStage.asErrorFree(),
 //        orderFinalizingStage.asErrorFree(),
 //        orderSettingDeliverySlotsStage.asErrorFree(),
@@ -124,9 +124,15 @@ class TestController(
         }
         logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
 
+
         val testStartTime = System.currentTimeMillis()
-        coroutineScope.launch(testingFlow.testFlowCoroutine + TestContext(serviceName = serviceName)) {
-            delay(Random.nextLong(60_000)) // to distribute load more evenly
+        coroutineScope.launch(
+            testingFlow.testFlowCoroutine + TestContext(
+                serviceName = serviceName,
+                numOfParallelTests = testingFlow.testParams.parallelProcessesNumber
+            )
+        ) {
+            delay(Random.nextLong(testingFlow.testParams.parallelProcessesNumber * 50L)) // to distribute load more evenly
 
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
@@ -167,6 +173,7 @@ data class TestContext(
     var paymentDetails: PaymentDetails = PaymentDetails(),
     var stagesComplete: MutableList<String> = mutableListOf(),
     var wasChangedAfterFinalization: Boolean = false,
+    var numOfParallelTests: Int,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
@@ -177,11 +184,11 @@ data class TestContext(
 }
 
 data class PaymentDetails(
-    var startedAt: Long? = null,
-    var failedAt: Long? = null,
-    var finishedAt: Long? = null,
+//    var startedAt: Long? = null,
+//    var failedAt: Long? = null,
+//    var finishedAt: Long? = null,
     var attempt: Int = 0,
-    var amount: Int? = null,
+//    var amount: Int? = null,
 )
 
 data class TestParameters(

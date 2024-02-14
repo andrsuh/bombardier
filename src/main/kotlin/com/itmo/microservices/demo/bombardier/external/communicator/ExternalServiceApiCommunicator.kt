@@ -200,8 +200,8 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(60)
         private val READ_TIMEOUT = Duration.ofSeconds(60)
         private val WRITE_TIMEOUT = Duration.ofSeconds(60)
-        private const val NUMBER_OF_CLIENTS = 1
-        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 8
+        private const val NUMBER_OF_CLIENTS = 16
+        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 32
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
@@ -220,8 +220,8 @@ class HttpClientsManager {
                 Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
             }.let {
                 Dispatcher(it).also {
-                    it.maxRequests = 128
-                    it.maxRequestsPerHost = 32
+                    it.maxRequests = 1024
+                    it.maxRequestsPerHost = 1024
                 }
             }
         }
