@@ -30,9 +30,9 @@ class ExternalSystemController(
     }
 
     private val invoices = ConcurrentHashMap<String, AtomicInteger>()
-
     private val accounts = ConcurrentHashMap<String, Account>()
 
+    private val blockList = ConcurrentHashMap<String, Boolean>()
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
@@ -55,9 +55,9 @@ class ExternalSystemController(
                 service.name,
                 accName2,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName2, 100, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(1000),
+                slo = Slo(upperLimitInvocationMillis = 5_000),
+                rateLimiter = makeRateLimiter(accName2, 60, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(130),
                 price = (basePrice * 0.7).toInt()
             )
 
@@ -67,9 +67,9 @@ class ExternalSystemController(
                 service.name,
                 accName3,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
+                slo = Slo(upperLimitInvocationMillis = 5_000),
                 rateLimiter = makeRateLimiter(accName3, 15, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(1000),
+                window = SemaphoreOngoingWindow(45),
                 price = (basePrice * 0.4).toInt()
             )
 
@@ -79,9 +79,9 @@ class ExternalSystemController(
                 service.name,
                 accName4,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName4, 15, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(30),
+                slo = Slo(upperLimitInvocationMillis = 5_000),
+                rateLimiter = makeRateLimiter(accName4, 10, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -91,9 +91,9 @@ class ExternalSystemController(
                 service.name,
                 accName42,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
+                slo = Slo(upperLimitInvocationMillis = 5_000, fullBlockingProbability = 0.005),
                 rateLimiter = makeRateLimiter(accName42, 15, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(15),
+                window = SemaphoreOngoingWindow(30),
                 price = (basePrice * 0.35).toInt()
             )
 
@@ -103,9 +103,9 @@ class ExternalSystemController(
                 service.name,
                 accName5,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.01),
-                rateLimiter = makeRateLimiter(accName5, 7, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(15),
+                slo = Slo(upperLimitInvocationMillis = 5_000, fullBlockingProbability = 0.005),
+                rateLimiter = makeRateLimiter(accName5, 15, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(30),
                 price = (basePrice * 0.3).toInt()
             )
         }
@@ -171,6 +171,16 @@ class ExternalSystemController(
         val start = System.currentTimeMillis()
 
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
+
+        if (Random.nextDouble(0.0, 1.0) < account.slo.fullBlockingProbability) {
+            blockList[accountName] = true
+        }
+
+        if (blockList[accountName] == true) {
+            delay(Random.nextLong(account.slo.upperLimitInvocationMillis * 5))
+            blockList[accountName] = false
+        }
+
         val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.let {
             it.addAndGet(account.price)
         }
