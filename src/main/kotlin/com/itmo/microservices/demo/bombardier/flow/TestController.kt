@@ -44,7 +44,7 @@ class TestController(
 
     private val coroutineScope = CoroutineScope(executor.asCoroutineDispatcher())
 
-    private val testStages = listOf(
+    private val testStages = listOf<TestStage>(
         choosingUserAccountStage.asErrorFree().asMetricRecordable(),
         orderCreationStage.asErrorFree().asMetricRecordable(),
         orderCollectingStage.asErrorFree().asMetricRecordable(),
@@ -54,7 +54,7 @@ class TestController(
 //        orderChangeItemsAfterFinalizationStage.asErrorFree(),
 //        orderFinalizingStage.asErrorFree(),
 //        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderPaymentStage.asErrorFree().asMetricRecordable(),
+        orderPaymentStage.asErrorFree().asMetricRecordable().asRetryable(),
 //        orderDeliveryStage.asErrorFree()
     )
 

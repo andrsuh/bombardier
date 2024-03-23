@@ -140,17 +140,21 @@ class OrderPaymentStage : TestStage {
                 return TestStage.TestContinuationType.CONTINUE
             }
             PaymentStatus.FAILED -> { // todo sukhoa check order status hasn't changed and user ne charged
-//                if (paymentDetails.attempt < 10) {
-//                    eventLogger.info(I_PAYMENT_RETRY, order.id, paymentDetails.attempt)
-//                    return TestStage.TestContinuationType.RETRY
-//                } else {
+                if (paymentDetails.attempt < 3) {
+                    eventLogger.info(I_PAYMENT_RETRY, order.id, paymentDetails.attempt)
+                    Metrics
+                        .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "RETRY", paymentFailureReason to "SHOP_REJECTED")
+                        .paymentFinished()
+
+                    return TestStage.TestContinuationType.RETRY
+                } else {
                     eventLogger.error(E_PAYMENT_FAILED, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
 //                    paymentDetails.failedAt = System.currentTimeMillis()
                     Metrics
                         .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SHOP_REJECTED")
                         .paymentFinished()
                     return TestStage.TestContinuationType.FAIL
-//                }
+                }
             } // todo sukhoa not enough money
             else -> {
                 eventLogger.error(
