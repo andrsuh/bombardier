@@ -84,6 +84,8 @@ jobs:
           mvn -B package
           JAR_PATH=$(mvn help:evaluate -Dexpression=project.build.finalName -q -DforceStdout)
           echo ::set-output name=jar::${JAR_PATH}.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
         uses: docker/build-push-action@v2
