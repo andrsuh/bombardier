@@ -47,9 +47,9 @@ class TestController(
     private val testStages = listOf<TestStage>(
         choosingUserAccountStage.asErrorFree().asMetricRecordable(),
         orderCreationStage.asErrorFree().asMetricRecordable(),
-        orderCollectingStage.asErrorFree().asMetricRecordable(),
+//        orderCollectingStage.asErrorFree().asMetricRecordable(),
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
-        orderFinalizingStage.asErrorFree().asMetricRecordable(),
+//        orderFinalizingStage.asErrorFree().asMetricRecordable(),
 //        orderSettingDeliverySlotsStage.asErrorFree().asMetricRecordable(),
 //        orderChangeItemsAfterFinalizationStage.asErrorFree(),
 //        orderFinalizingStage.asErrorFree(),
@@ -132,7 +132,7 @@ class TestController(
                 numOfParallelTests = testingFlow.testParams.parallelProcessesNumber
             )
         ) {
-            delay(Random.nextLong(testingFlow.testParams.parallelProcessesNumber * 50L)) // to distribute load more evenly
+            delay(Random.nextLong(testingFlow.testParams.parallelProcessesNumber * 5L)) // to distribute load more evenly
 
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)

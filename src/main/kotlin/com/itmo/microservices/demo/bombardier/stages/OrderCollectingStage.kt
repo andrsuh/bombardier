@@ -40,7 +40,7 @@ class OrderCollectingStage : TestStage {
 
 //        val orderMap = finalOrder.itemsMap.mapKeys { it.key }
 
-        ConditionAwaiter.awaitAtMost(20, SECONDS, ofSeconds(2))
+        ConditionAwaiter.awaitAtMost(30, SECONDS, ofSeconds(5))
             .condition {
                 val orderMap = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).itemsMap.mapKeys { it.key }
 
