@@ -67,9 +67,9 @@ class ExternalSystemController(
                 service.name,
                 accName3,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 5_000),
-                rateLimiter = makeRateLimiter(accName3, 15, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(45),
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName3, 10, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(35),
                 price = (basePrice * 0.4).toInt()
             )
 
@@ -79,7 +79,7 @@ class ExternalSystemController(
                 service.name,
                 accName4,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 5_000),
+                slo = Slo(upperLimitInvocationMillis = 10_000),
                 rateLimiter = makeRateLimiter(accName4, 10, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
@@ -91,9 +91,9 @@ class ExternalSystemController(
                 service.name,
                 accName42,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 5_000, fullBlockingProbability = 0.005),
-                rateLimiter = makeRateLimiter(accName42, 15, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(30),
+                slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.005),
+                rateLimiter = makeRateLimiter(accName42, 7, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(10),
                 price = (basePrice * 0.35).toInt()
             )
 
@@ -103,9 +103,9 @@ class ExternalSystemController(
                 service.name,
                 accName5,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 5_000, fullBlockingProbability = 0.005),
-                rateLimiter = makeRateLimiter(accName5, 15, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(30),
+                slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.005),
+                rateLimiter = makeRateLimiter(accName5, 7, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(10),
                 price = (basePrice * 0.3).toInt()
             )
         }
@@ -177,7 +177,7 @@ class ExternalSystemController(
         }
 
         if (blockList[accountName] == true) {
-            delay(Random.nextLong(account.slo.upperLimitInvocationMillis * 5))
+            delay(Random.nextLong(account.slo.upperLimitInvocationMillis * 10))
             blockList[accountName] = false
         }
 
