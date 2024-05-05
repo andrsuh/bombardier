@@ -2,6 +2,7 @@ package com.itmo.microservices.demo.externalsys.controller
 
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.common.SemaphoreOngoingWindow
+import com.itmo.microservices.demo.common.makeRateLimiter
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.github.resilience4j.ratelimiter.RateLimiter
 import io.github.resilience4j.ratelimiter.RateLimiterConfig
@@ -238,16 +239,4 @@ class ExternalSystemController(
         val result: Boolean,
         val message: String? = null,
     )
-}
-
-fun makeRateLimiter(accountName: String, rate: Int, timeUnit: TimeUnit = TimeUnit.SECONDS): RateLimiter {
-    val config = RateLimiterConfig.custom()
-        .limitRefreshPeriod(if (timeUnit == TimeUnit.SECONDS) Duration.ofSeconds(1) else Duration.ofMinutes(1))
-        .limitForPeriod(rate)
-        .timeoutDuration(Duration.ofMillis(5))
-        .build()
-
-    val rateLimiterRegistry = RateLimiterRegistry.of(config)
-
-    return rateLimiterRegistry.rateLimiter("rateLimiter:${accountName}")
 }

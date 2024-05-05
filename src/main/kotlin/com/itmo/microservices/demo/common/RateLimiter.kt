@@ -1,5 +1,7 @@
 package com.itmo.microservices.demo.common
 
+import io.github.resilience4j.ratelimiter.RateLimiterConfig
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
@@ -7,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -36,6 +39,8 @@ class RateLimiter(
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 
     fun tick() = semaphore.tryAcquire()
+
+    suspend fun tickBlocking() = semaphore.acquire()
 }
 
 class CountingRateLimiter(
@@ -70,4 +75,16 @@ class CountingRateLimiter(
         var segmentStart: Long = System.currentTimeMillis(),
         var permits: Int = 0,
     )
+}
+
+fun makeRateLimiter(accountName: String, rate: Int, timeUnit: TimeUnit = TimeUnit.SECONDS): io.github.resilience4j.ratelimiter.RateLimiter {
+    val config = RateLimiterConfig.custom()
+        .limitRefreshPeriod(if (timeUnit == TimeUnit.SECONDS) Duration.ofSeconds(1) else Duration.ofMinutes(1))
+        .limitForPeriod(rate)
+        .timeoutDuration(Duration.ofMillis(5))
+        .build()
+
+    val rateLimiterRegistry = RateLimiterRegistry.of(config)
+
+    return rateLimiterRegistry.rateLimiter("rateLimiter:${accountName}")
 }

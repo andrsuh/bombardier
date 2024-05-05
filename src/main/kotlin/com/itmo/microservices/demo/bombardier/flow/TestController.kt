@@ -6,6 +6,7 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServic
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWithApiAndAdditional
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
+import com.itmo.microservices.demo.common.RateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
@@ -16,9 +17,9 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
-import kotlin.random.Random
 
 @Service
 class TestController(
@@ -42,7 +43,8 @@ class TestController(
         Metrics.executorServiceMonitoring(it, "test-controller-executor")
     }
 
-    private val coroutineScope = CoroutineScope(executor.asCoroutineDispatcher())
+    private val testInvokationScope = CoroutineScope(executor.asCoroutineDispatcher())
+    private val testLaunchScope = CoroutineScope(Dispatchers.Default)
 
     private val testStages = listOf<TestStage>(
         choosingUserAccountStage.asErrorFree().asMetricRecordable(),
@@ -75,10 +77,8 @@ class TestController(
             stuff.userManagement.createUsersPool(params.numberOfUsers)
         }
 
-        repeat(params.parallelProcessesNumber) {
-            logger.info("Launch coroutine for $descriptor")
-            launchNewTestFlow(descriptor, stuff)
-        }
+        logger.info("Launch coroutine for $descriptor")
+        launchTestCycle(descriptor, stuff)
     }
 
     fun getTestingFlowForService(serviceName: String): TestingFlow {
@@ -105,35 +105,54 @@ class TestController(
         val testsFinished: AtomicInteger = AtomicInteger(0)
     )
 
-    private fun launchNewTestFlow(descriptor: ServiceDescriptor, stuff: ServiceWithApiAndAdditional) {
+    private fun launchTestCycle(
+        descriptor: ServiceDescriptor,
+        stuff: ServiceWithApiAndAdditional,
+    ) {
         val logger = LoggerWrapper(log, descriptor.name)
-
         val serviceName = descriptor.name
         val testingFlow = runningTests[serviceName] ?: return
 
-        if (testingFlow.testParams.numberOfTests != null && testingFlow.testsFinished.get() >= testingFlow.testParams.numberOfTests) {
-            logger.info("Wrapping up test flow. Number of tests exceeded")
-            runningTests.remove(serviceName)
-            return
-        }
+        val params = testingFlow.testParams
+        val rateLimiter = RateLimiter(params.ratePerSecond, TimeUnit.SECONDS)
 
-        val testNum = testingFlow.testsStarted.getAndIncrement() // data race :(
-        if (testingFlow.testParams.numberOfTests != null && testNum > testingFlow.testParams.numberOfTests) {
-            logger.info("All tests Started. No new tests")
-            return
-        }
-        logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+        testLaunchScope.launch {
+            while (true) {
+                if (testingFlow.testsFinished.get() >= params.numberOfTests) {
+                    logger.info("Wrapping up test flow. Number of tests exceeded")
+                    runningTests.remove(serviceName)
+                    return@launch
+                }
 
+                val testNum = testingFlow.testsStarted.getAndIncrement()
+                if (testNum > params.numberOfTests) {
+                    logger.info("All tests Started. No new tests")
+                    runningTests.remove(serviceName)
+                    return@launch
+                }
+
+                rateLimiter.tickBlocking()
+                logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+                launchNewTestFlow(serviceName, testingFlow, descriptor, stuff)
+            }
+        }
+    }
+
+    private fun launchNewTestFlow(
+        serviceName: String,
+        testingFlow: TestingFlow,
+        descriptor: ServiceDescriptor,
+        stuff: ServiceWithApiAndAdditional
+    ) {
+        val logger = LoggerWrapper(log, descriptor.name)
 
         val testStartTime = System.currentTimeMillis()
-        coroutineScope.launch(
+        testInvokationScope.launch(
             testingFlow.testFlowCoroutine + TestContext(
                 serviceName = serviceName,
                 numOfParallelTests = testingFlow.testParams.parallelProcessesNumber
             )
         ) {
-            delay(Random.nextLong(testingFlow.testParams.parallelProcessesNumber * 5L)) // to distribute load more evenly
-
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
                 if (stageResult != CONTINUE) {
@@ -158,7 +177,6 @@ class TestController(
             }
 
             logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
-            launchNewTestFlow(descriptor, stuff)
         }
     }
 }
@@ -195,5 +213,6 @@ data class TestParameters(
     val serviceName: String,
     val numberOfUsers: Int,
     val parallelProcessesNumber: Int,
-    val numberOfTests: Int? = null
+    val numberOfTests: Int = 100,
+    val ratePerSecond: Int = 10,
 )

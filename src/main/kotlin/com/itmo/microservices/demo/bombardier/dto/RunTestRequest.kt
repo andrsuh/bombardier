@@ -5,4 +5,5 @@ data class RunTestRequest(
     val usersCount: Int,
     val parallelProcCount: Int,
     val testCount: Int,
+    val ratePerSecond: Int,
 )

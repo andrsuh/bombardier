@@ -81,7 +81,8 @@ class BombardierController(
                 request.serviceName,
                 request.usersCount,
                 request.parallelProcCount,
-                request.testCount
+                request.testCount,
+                request.ratePerSecond,
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()
