@@ -2,12 +2,12 @@ package com.itmo.microservices.demo.bombardier.stages
 
 import com.itmo.microservices.commonlib.annotations.InjectEventLogger
 import com.itmo.microservices.commonlib.logging.EventLogger
-import com.itmo.microservices.demo.bombardier.flow.CoroutineLoggingFactory
 import com.itmo.microservices.demo.bombardier.logging.OrderCreationNotableEvents.*
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import org.springframework.stereotype.Component
+import kotlin.random.Random
 
 @Component
 class OrderCreationStage : TestStage {
@@ -22,7 +22,9 @@ class OrderCreationStage : TestStage {
     ): TestStage.TestContinuationType {
         eventLogger = EventLoggerWrapper(eventLog, testCtx().serviceName)
 
-        val order = externalServiceApi.createOrder(testCtx().userId!!)
+        val price = Random.nextInt(1, 15) * Random.nextInt(10,150)
+
+        val order = externalServiceApi.createOrder(testCtx().userId!!, price)
         eventLogger.info(I_ORDER_CREATED, order.id)
         testCtx().orderId = order.id
         return TestStage.TestContinuationType.CONTINUE

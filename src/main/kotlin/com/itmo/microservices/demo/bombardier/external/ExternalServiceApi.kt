@@ -19,7 +19,7 @@ interface ExternalServiceApi {
     suspend fun userFinancialHistory(userId: UUID) = userFinancialHistory(userId, null)
     suspend fun userFinancialHistory(userId: UUID, orderId: UUID?): List<UserAccountFinancialLogRecord>
 
-    suspend fun createOrder(userId: UUID): Order
+    suspend fun createOrder(userId: UUID, price: Int): Order
 
     //suspend fun getOrders(userId: UUID): List<Order>
     suspend fun getOrder(userId: UUID, orderId: UUID): Order

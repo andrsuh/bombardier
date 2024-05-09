@@ -39,7 +39,7 @@ class ExternalServiceSimulator(
         TODO("Not yet implemented")
     }
 
-    override suspend fun createOrder(userId: UUID): Order {
+    override suspend fun createOrder(userId: UUID, price: Int): Order {
         return orderStorage.create(
             Order(
                 id = UUID.randomUUID(),

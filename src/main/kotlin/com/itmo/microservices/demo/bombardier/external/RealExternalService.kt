@@ -53,10 +53,10 @@ class RealExternalService(
         return communicator.executeWithAuthAndDeserialize("userFinancialHistory", url, session)
     }
 
-    override suspend fun createOrder(userId: UUID): Order {
+    override suspend fun createOrder(userId: UUID, price: Int): Order {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("createOrder", "/orders?userId=${userId}", session) {
+        return communicator.executeWithAuthAndDeserialize("createOrder", "/orders?userId=${userId}&price=${price}", session) {
             post()
         }
     }

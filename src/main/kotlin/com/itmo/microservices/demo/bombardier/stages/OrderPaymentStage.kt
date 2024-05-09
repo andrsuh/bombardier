@@ -51,7 +51,7 @@ class OrderPaymentStage : TestStage {
         eventLog.info(I_STARTED_PAYMENT, testCtx().orderId!!, paymentSubmissionDto.timestamp, paymentSubmissionDto.transactionId)
 
         val paymentSubmissionTimeout = 15L
-        ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(2))
+        ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(5))
             .condition {
                 order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
                 order.status == OrderStatus.OrderPaymentInProgress || order.status == OrderStatus.OrderPayed || order.status == OrderStatus.OrderPaymentFailed
@@ -70,13 +70,15 @@ class OrderPaymentStage : TestStage {
         val startWaitingPayment = System.currentTimeMillis()
         eventLog.info(I_START_WAITING_FOR_PAYMENT_RESULT, testCtx().orderId!!, paymentSubmissionDto.transactionId, startWaitingPayment - paymentSubmissionDto.timestamp)
 
-        val awaitingTime = when(testCtx().numOfParallelTests) {
-            in (0..100) -> 80L
-            in (101..1000) -> 180L
-            else -> testCtx().numOfParallelTests / 7L
-        }
 
-        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(4))
+        val awaitingTime = 200L
+//        val awaitingTime = when(testCtx().numOfParallelTests) {
+//            in (0..100) -> 80L
+//            in (101..1000) -> 180L
+//            else -> testCtx().numOfParallelTests / 7L
+//        }
+
+        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(25))
             .condition {
                 externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
                     .any { it.transactionId == paymentSubmissionDto.transactionId }
@@ -135,7 +137,7 @@ class OrderPaymentStage : TestStage {
                     .paymentFinished()
 
 //                paymentDetails.finishedAt = System.currentTimeMillis()
-                eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
+                eventLogger.info(I_PAYMENT_SUCCESS, order.id, paymentSubmissionDto.transactionId, paymentLogRecord.timestamp - paymentSubmissionDto.timestamp)
 
                 return TestStage.TestContinuationType.CONTINUE
             }
@@ -148,7 +150,7 @@ class OrderPaymentStage : TestStage {
 //
 //                    return TestStage.TestContinuationType.RETRY
 //                } else {
-                    eventLogger.error(E_PAYMENT_FAILED, order.id, paymentSubmissionDto.transactionId, System.currentTimeMillis() - startWaitingPayment)
+                    eventLogger.error(E_PAYMENT_FAILED, order.id, paymentSubmissionDto.transactionId, paymentLogRecord.timestamp - paymentSubmissionDto.timestamp)
 //                    paymentDetails.failedAt = System.currentTimeMillis()
                     Metrics
                         .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SHOP_REJECTED")

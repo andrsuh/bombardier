@@ -56,7 +56,7 @@ class ExternalSystemController(
                 service.name,
                 accName2,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 5_000),
+                slo = Slo(upperLimitInvocationMillis = 2_000),
                 rateLimiter = makeRateLimiter(accName2, 60, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(130),
                 price = (basePrice * 0.7).toInt()
@@ -68,7 +68,7 @@ class ExternalSystemController(
                 service.name,
                 accName3,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
+                slo = Slo(upperLimitInvocationMillis = 3_000),
                 rateLimiter = makeRateLimiter(accName3, 10, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(35),
                 price = (basePrice * 0.4).toInt()
@@ -80,7 +80,7 @@ class ExternalSystemController(
                 service.name,
                 accName4,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
+                slo = Slo(upperLimitInvocationMillis = 3_000),
                 rateLimiter = makeRateLimiter(accName4, 10, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
