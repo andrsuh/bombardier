@@ -34,6 +34,71 @@ class ExternalSystemController(
     private val accounts = ConcurrentHashMap<String, Account>()
 
     private val blockList = ConcurrentHashMap<String, Boolean>()
+//    @PostConstruct
+//    fun init() {
+//        services.storage.forEach { service ->
+//            // default 1 -> almost no restrictions
+//            val basePrice = 100
+//            val accName1 = "default-1"
+//            accounts["${service.name}-$accName1"] = Account(
+//                service.name,
+//                accName1,
+//                null,
+//                slo = Slo(upperLimitInvocationMillis = 1000),
+//                rateLimiter = makeRateLimiter(accName1, 100, TimeUnit.SECONDS),
+//                window = SemaphoreOngoingWindow(1000),
+//                price = basePrice
+//            )
+//
+//            // default 2
+//            val accName2 = "default-2"
+//            accounts["${service.name}-$accName2"] = Account(
+//                service.name,
+//                accName2,
+//                null,
+//                slo = Slo(upperLimitInvocationMillis = 2_000),
+//                rateLimiter = makeRateLimiter(accName2, 60, TimeUnit.SECONDS),
+//                window = SemaphoreOngoingWindow(130),
+//                price = (basePrice * 0.7).toInt()
+//            )
+//
+//            // default 3
+//            val accName3 = "default-3"
+//            accounts["${service.name}-$accName3"] = Account(
+//                service.name,
+//                accName3,
+//                null,
+//                slo = Slo(upperLimitInvocationMillis = 3_000),
+//                rateLimiter = makeRateLimiter(accName3, 10, TimeUnit.SECONDS),
+//                window = SemaphoreOngoingWindow(35),
+//                price = (basePrice * 0.4).toInt()
+//            )
+//
+//            // default 4 -> like default 3, but window size is 15
+//            val accName4 = "default-4"
+//            accounts["${service.name}-$accName4"] = Account(
+//                service.name,
+//                accName4,
+//                null,
+//                slo = Slo(upperLimitInvocationMillis = 3_000),
+//                rateLimiter = makeRateLimiter(accName4, 10, TimeUnit.SECONDS),
+//                window = SemaphoreOngoingWindow(15),
+//                price = (basePrice * 0.3).toInt()
+//            )
+//
+//            // default 5
+//            val accName5 = "default-5"
+//            accounts["${service.name}-$accName5"] = Account(
+//                service.name,
+//                accName5,
+//                null,
+//                slo = Slo(upperLimitInvocationMillis = 10_000),
+//                rateLimiter = makeRateLimiter(accName5, 10, TimeUnit.SECONDS),
+//                window = SemaphoreOngoingWindow(8),
+//                price = (basePrice * 0.3).toInt()
+//            )
+//        }
+//    }
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
@@ -44,34 +109,34 @@ class ExternalSystemController(
                 service.name,
                 accName1,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 1000),
+                slo = Slo(upperLimitInvocationMillis = 40_000),
                 rateLimiter = makeRateLimiter(accName1, 100, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(1000),
+                window = SemaphoreOngoingWindow(2000),
                 price = basePrice
             )
 
-            // default 2 -> almost no restrictions, but more expensive and more time to process (10s)
+            // default 2
             val accName2 = "default-2"
             accounts["${service.name}-$accName2"] = Account(
                 service.name,
                 accName2,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 2_000),
-                rateLimiter = makeRateLimiter(accName2, 60, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(130),
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName2, 10, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(100),
                 price = (basePrice * 0.7).toInt()
             )
 
-            // default 3 -> like default 2, but rate limit is 15 per second
+            // default 3
             val accName3 = "default-3"
             accounts["${service.name}-$accName3"] = Account(
                 service.name,
                 accName3,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 3_000),
-                rateLimiter = makeRateLimiter(accName3, 10, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(35),
-                price = (basePrice * 0.4).toInt()
+                slo = Slo(upperLimitInvocationMillis = 16_000),
+                rateLimiter = makeRateLimiter(accName3, 2, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(32),
+                price = (basePrice * 0.3).toInt()
             )
 
             // default 4 -> like default 3, but window size is 15
@@ -80,32 +145,44 @@ class ExternalSystemController(
                 service.name,
                 accName4,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 3_000),
-                rateLimiter = makeRateLimiter(accName4, 10, TimeUnit.SECONDS),
+                slo = Slo(upperLimitInvocationMillis = 15_000),
+                rateLimiter = makeRateLimiter(accName4, 5, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
             )
 
-            // default 4.2 -> same as default 4, but a bit more expensive
-            val accName42 = "default-42"
-            accounts["${service.name}-$accName42"] = Account(
-                service.name,
-                accName42,
-                null,
-                slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.005),
-                rateLimiter = makeRateLimiter(accName42, 7, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(10),
-                price = (basePrice * 0.35).toInt()
-            )
-
-            // default 5 -> like default 4, but fullBlockingProbability is 0.01
+            // default 5
             val accName5 = "default-5"
             accounts["${service.name}-$accName5"] = Account(
                 service.name,
                 accName5,
                 null,
+                slo = Slo(upperLimitInvocationMillis = 10_000),
+                rateLimiter = makeRateLimiter(accName5, 10, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(8),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            // default 6 fullBlockingProbability is 0.01
+            val accName6 = "default-6"
+            accounts["${service.name}-$accName6"] = Account(
+                service.name,
+                accName6,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 1_000),
+                rateLimiter = makeRateLimiter(accName6, 30, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(35),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            // default 7 fullBlockingProbability is 0.01
+            val accName7 = "default-7"
+            accounts["${service.name}-$accName7"] = Account(
+                service.name,
+                accName7,
+                null,
                 slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.005),
-                rateLimiter = makeRateLimiter(accName5, 7, TimeUnit.SECONDS),
+                rateLimiter = makeRateLimiter(accName7, 7, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(10),
                 price = (basePrice * 0.3).toInt()
             )
