@@ -1,6 +1,6 @@
 package com.itmo.microservices.demo.bombardier.logging
 
-import com.itmo.microservices.commonlib.logging.NotableEvent
+import com.itmo.microservices.demo.common.logging.lib.logging.NotableEvent
 
 enum class OrderChangeItemsAfterFinalizationNotableEvents(private val template: String) : NotableEvent {
     I_STATE_SKIPPED("OrderChangeItemsAfterFinalizationStage will not be executed for order {}"),

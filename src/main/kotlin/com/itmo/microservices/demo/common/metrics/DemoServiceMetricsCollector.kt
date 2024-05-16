@@ -1,6 +1,6 @@
 package com.itmo.microservices.demo.common.metrics
 
-import com.itmo.microservices.commonlib.metrics.CommonMetricsCollector
+import com.itmo.microservices.demo.common.logging.lib.logging.CommonMetricsCollector
 import org.springframework.stereotype.Component
 
 @Component

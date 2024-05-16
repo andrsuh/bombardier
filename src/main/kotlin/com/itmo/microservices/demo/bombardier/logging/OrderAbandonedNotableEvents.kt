@@ -1,6 +1,6 @@
 package com.itmo.microservices.demo.bombardier.logging
 
-import com.itmo.microservices.commonlib.logging.NotableEvent
+import com.itmo.microservices.demo.common.logging.lib.logging.NotableEvent
 
 enum class OrderAbandonedNotableEvents (private val template: String) : NotableEvent {
     E_ORDER_ABANDONED("The order {} was abandoned, but no records were found"),

@@ -118,15 +118,9 @@ class TestController(
 
         testLaunchScope.launch {
             while (true) {
-                if (testingFlow.testsFinished.get() >= params.numberOfTests) {
-                    logger.info("Wrapping up test flow. Number of tests exceeded")
-                    runningTests.remove(serviceName)
-                    return@launch
-                }
-
                 val testNum = testingFlow.testsStarted.getAndIncrement()
                 if (testNum > params.numberOfTests) {
-                    logger.info("All tests Started. No new tests")
+                    logger.info("Wrapping up test flow. Number of tests exceeded")
                     runningTests.remove(serviceName)
                     return@launch
                 }
@@ -150,7 +144,7 @@ class TestController(
         testInvokationScope.launch(
             testingFlow.testFlowCoroutine + TestContext(
                 serviceName = serviceName,
-                numOfParallelTests = testingFlow.testParams.parallelProcessesNumber
+                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond
             )
         ) {
             testStages.forEach { stage ->
@@ -191,7 +185,7 @@ data class TestContext(
     var paymentDetails: PaymentDetails = PaymentDetails(),
     var stagesComplete: MutableList<String> = mutableListOf(),
     var wasChangedAfterFinalization: Boolean = false,
-    var numOfParallelTests: Int,
+    var launchTestsRatePerSec: Int,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
@@ -212,7 +206,7 @@ data class PaymentDetails(
 data class TestParameters(
     val serviceName: String,
     val numberOfUsers: Int,
-    val parallelProcessesNumber: Int,
+//    val parallelProcessesNumber: Int,
     val numberOfTests: Int = 100,
     val ratePerSecond: Int = 10,
 )

@@ -1,6 +1,6 @@
 package com.itmo.microservices.demo.bombardier.logging
 
-import com.itmo.microservices.commonlib.logging.NotableEvent
+import com.itmo.microservices.demo.common.logging.lib.logging.NotableEvent
 
 enum class OrderCommonNotableEvents(private val template: String) : NotableEvent {
     E_ILLEGAL_ORDER_TRANSITION("Illegal transition for order {} from {} to {}"),

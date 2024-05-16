@@ -21,7 +21,6 @@
         <kotlin.version>1.6.0</kotlin.version>
         <guava.version>30.1.1-jre</guava.version>
         <jjwt.version>0.9.1</jjwt.version>
-        <common-lib.version>0.8.0-SNAPSHOT</common-lib.version>
         <resilience4jVersion>1.6.0</resilience4jVersion>
 
         <buildnumber-maven-plugin.version>1.4</buildnumber-maven-plugin.version>
@@ -29,11 +28,6 @@
     </properties>
          
     <dependencies>
-        <dependency>
-            <groupId>com.itmo.microservices</groupId>
-            <artifactId>common-lib</artifactId>
-            <version>${common-lib.version}</version>
-        </dependency>
 
         <dependency>
             <groupId>org.jetbrains.kotlinx</groupId>
@@ -154,13 +148,6 @@
         <repository>
             <id>central</id>
             <url>https://repo1.maven.org/maven2/</url>
-        </repository>
-        <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/microservices-itmo-21-22/common-lib</url>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
         </repository>
     </repositories>
          

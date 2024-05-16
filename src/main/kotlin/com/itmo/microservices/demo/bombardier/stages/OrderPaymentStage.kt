@@ -1,8 +1,6 @@
 package com.itmo.microservices.demo.bombardier.stages
 
-import com.itmo.microservices.commonlib.annotations.InjectEventLogger
-import com.itmo.microservices.commonlib.logging.EventLogger
-import com.itmo.microservices.demo.bombardier.external.FinancialOperationType
+import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLogger
 import com.itmo.microservices.demo.bombardier.external.PaymentStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
@@ -11,6 +9,7 @@ import com.itmo.microservices.demo.bombardier.logging.OrderCommonNotableEvents
 import com.itmo.microservices.demo.bombardier.logging.OrderPaymentNotableEvents.*
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
+import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.common.metrics.Metrics
 import org.springframework.stereotype.Component
 import java.time.Duration

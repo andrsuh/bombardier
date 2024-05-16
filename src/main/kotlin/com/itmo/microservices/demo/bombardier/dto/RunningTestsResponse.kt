@@ -9,7 +9,6 @@ data class RunningTestsResponse(
 data class ExtendedTestsParameters(
     val serviceName: String,
     val numberOfUsers: Int,
-    val parallelProcessesNumber: Int,
     val numberOfTests: Int? = null,
     val testsStarted: Int,
     val testsFinished: Int
@@ -17,7 +16,7 @@ data class ExtendedTestsParameters(
 
 fun TestParameters.toExtended(testsStarted: Int, testsFinished: Int): ExtendedTestsParameters {
     return ExtendedTestsParameters(
-        serviceName, numberOfUsers, parallelProcessesNumber, numberOfTests,
+        serviceName, numberOfUsers, numberOfTests,
         testsStarted, testsFinished
     )
 }

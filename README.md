@@ -5,24 +5,33 @@
     ```shell
     docker-compose up -d
     ```
-2. После успешного запуска Grafana будет доступна на `http://localhost:3000/`. Пароль для админа указан указан при создании сервиса (по умолчанию admin/quipy). 
-3. Prometheus доступен тут - `http://localhost:9090/`. Grafana создаст папку grafana/data, в которой будет хранить свои данные. Prometheus - prometheus/data
-3. После создания обоих docker сервисов, Grafana должна создаться DataSource `http://localhost:3000/connections/datasources` и дашборд `http://localhost:3000/dashboards`.
+
+2. После успешного запуска:
+   - Grafana будет доступна на `http://localhost:3000/`. Пароль для админа указан указан при создании сервиса (по умолчанию admin/quipy). 
+   - SwaggerUI доступен на `http://localhost:1234/swagger-ui/index.html#/bombardier-controller`.
+   - Prometheus доступен тут - `http://localhost:9090/`. 
+   Grafana создаст директорию grafana/data, в которой будет хранить свои данные. Prometheus - prometheus/data
+   
+3. После успешного старта обоих docker сервисов, в Grafana должны появиться 
+   - DataSource `http://localhost:3000/connections/datasources`
+   - Дашборд `http://localhost:3000/dashboards`
+   
 4. Запустите `DemoServiceApplication.kt`
 5. Запустите тестируемый сервис
 6. Запустите `run_tests.http`. Это запустит исполнение тестов бомбардира. Подправьте параметы, если нужно
 7. Смотрите на метрики и наслаждайтесь
 
 ## Docker compose
-
 To run specific version use environment variable `BOMBARDIER_VERSION`:
 ```shell
 BOMBARDIER_VERSION=4.0.8 docker-compose up -d
 ```
+
 To checkout the logs of the service
 ```shell
 docker-compose logs bombardier
 ```
+
 To check the metrics of the service
 ```http request
 http://localhost:1234/actuator/prometheus
@@ -32,7 +41,6 @@ To see and call HTTP API of the service:
 ```http request
 http://localhost:1234/swagger-ui/index.html#/bombardier-controller
 ```
-
 
 ## Кастомизация через application.yml (студентам не требуется)
 Для локальной разработки нужно включить профиль `dev`

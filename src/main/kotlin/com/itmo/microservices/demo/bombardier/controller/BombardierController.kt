@@ -5,7 +5,6 @@ import com.itmo.microservices.demo.bombardier.dto.NewServiceRequest
 import com.itmo.microservices.demo.bombardier.dto.RunTestRequest
 import com.itmo.microservices.demo.bombardier.dto.RunningTestsResponse
 import com.itmo.microservices.demo.bombardier.dto.toExtended
-import com.itmo.microservices.demo.bombardier.exceptions.InvalidServiceUrlException
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.bombardier.flow.TestController
 import com.itmo.microservices.demo.bombardier.flow.TestParameters
@@ -78,11 +77,10 @@ class BombardierController(
     fun runTest(@RequestBody request: RunTestRequest) {
         testApi.startTestingForService(
             TestParameters(
-                request.serviceName,
-                request.usersCount,
-                request.parallelProcCount,
-                request.testCount,
-                request.ratePerSecond,
+                serviceName = request.serviceName,
+                numberOfUsers = request.usersCount,
+                numberOfTests = request.testCount,
+                ratePerSecond = request.ratePerSecond,
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()

@@ -1,7 +1,7 @@
 package com.itmo.microservices.demo.bombardier.stages
 
-import com.itmo.microservices.commonlib.annotations.InjectEventLogger
-import com.itmo.microservices.commonlib.logging.EventLogger
+import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLogger
+import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.flow.CoroutineLoggingFactory
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi

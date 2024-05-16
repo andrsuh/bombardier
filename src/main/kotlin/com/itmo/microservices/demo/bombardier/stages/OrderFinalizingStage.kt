@@ -1,7 +1,7 @@
 package com.itmo.microservices.demo.bombardier.stages
 
-import com.itmo.microservices.commonlib.annotations.InjectEventLogger
-import com.itmo.microservices.commonlib.logging.EventLogger
+import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLogger
+import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.BookingStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
@@ -41,10 +41,10 @@ class OrderFinalizingStage : TestStage {
 
         var orderStateAfterBooking = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 
-        val awaitingTime = when(testCtx().numOfParallelTests) {
-            in (0..100) -> 80L
-            in (101..1000) -> 180L
-            else -> testCtx().numOfParallelTests / 7L
+        val awaitingTime = when(testCtx().launchTestsRatePerSec) { // todo sukhoa refactor
+            in (0..10) -> 80L
+            in (11..40) -> 180L
+            else -> testCtx().launchTestsRatePerSec * 500L
         }
 
         ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(10))
