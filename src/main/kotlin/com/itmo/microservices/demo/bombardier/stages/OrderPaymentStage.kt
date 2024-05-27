@@ -70,12 +70,7 @@ class OrderPaymentStage : TestStage {
         eventLog.info(I_START_WAITING_FOR_PAYMENT_RESULT, testCtx().orderId!!, paymentSubmissionDto.transactionId, startWaitingPayment - paymentSubmissionDto.timestamp)
 
 
-        val awaitingTime = 200L
-//        val awaitingTime = when(testCtx().numOfParallelTests) {
-//            in (0..100) -> 80L
-//            in (101..1000) -> 180L
-//            else -> testCtx().numOfParallelTests / 7L
-//        }
+        val awaitingTime = 80L + 20L
 
         ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(25))
             .condition {

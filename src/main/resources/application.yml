@@ -1,6 +1,9 @@
 spring:
   application:
     name: bombardier
+  mvc:
+    async:
+      request-timeout: 120000
 
 server:
   port: 1234

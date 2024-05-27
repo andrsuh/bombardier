@@ -144,7 +144,8 @@ class TestController(
         testInvokationScope.launch(
             testingFlow.testFlowCoroutine + TestContext(
                 serviceName = serviceName,
-                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond
+                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+                totalTestsNumber = testingFlow.testParams.numberOfTests
             )
         ) {
             testStages.forEach { stage ->
@@ -186,6 +187,7 @@ data class TestContext(
     var stagesComplete: MutableList<String> = mutableListOf(),
     var wasChangedAfterFinalization: Boolean = false,
     var launchTestsRatePerSec: Int,
+    var totalTestsNumber: Int,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey

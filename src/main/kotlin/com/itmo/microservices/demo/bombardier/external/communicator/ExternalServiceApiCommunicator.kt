@@ -108,7 +108,7 @@ open class ExternalServiceApiCommunicator(
                 logger.info("sending request to ${req.method()} ${req.url().url()}")
             }
 
-            httpClientsManager.getClient(testId ?: externalApiMethod).newCall(req).enqueue(object : Callback {
+            httpClientsManager.getClient(externalApiMethod).newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     it.resumeWithException(e)
                 }
@@ -200,33 +200,34 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(60)
         private val READ_TIMEOUT = Duration.ofSeconds(60)
         private val WRITE_TIMEOUT = Duration.ofSeconds(60)
-        private const val NUMBER_OF_CLIENTS = 16
-        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 32
+        private const val NUMBER_OF_CLIENTS = 32
+        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 3 * 128
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
 
-    private val clients = ConcurrentHashMap<Int, OkHttpClient>(25)
-    private val dispatchers = ConcurrentHashMap<Int, Dispatcher>(25)
+    private val clients = ConcurrentHashMap<String, OkHttpClient>(25)
+    private val dispatchers = ConcurrentHashMap<String, Dispatcher>(25)
 
     fun getClient(testIdentifier: String): OkHttpClient {
-        val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
+//        val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
 
-        val dispatcher = dispatchers.computeIfAbsent(hash) {
+        val dispatcher = dispatchers.computeIfAbsent(testIdentifier) {
             Executors.newFixedThreadPool(
                 NUMBER_OF_THREADS_PER_EXECUTOR,
-                NamedThreadFactory("external-service-executor-$hash")
+                NamedThreadFactory("external-service-executor-$testIdentifier")
             ).also {
-                Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
+                Metrics.executorServiceMonitoring(it, "external-service-executor-$testIdentifier")
             }.let {
                 Dispatcher(it).also {
-                    it.maxRequests = 1024
-                    it.maxRequestsPerHost = 1024
+                    it.maxRequests = 4096
+                    it.maxRequestsPerHost = 4096
                 }
             }
         }
 
-        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS) {
+        // abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
+        return clients.computeIfAbsent(testIdentifier) {
             logger.info("Creating new http client for test $testIdentifier")
             OkHttpClient.Builder().run {
                 dispatcher(dispatcher)
