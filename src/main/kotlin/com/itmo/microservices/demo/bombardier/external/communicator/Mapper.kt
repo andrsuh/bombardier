@@ -2,6 +2,7 @@ package com.itmo.microservices.demo.bombardier.external.communicator
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 class BombardierMappingExceptionWithUrl(url: String, content: String, originalException: Throwable) : Exception("""
@@ -32,13 +33,12 @@ class BombardierMappingException(content: String, clazz: Class<*>, originalExcep
 
 val mapper = jacksonObjectMapper().apply {
     findAndRegisterModules()
-}
+}.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
 inline fun <reified T> readValueBombardier(content: String): T {
     return try {
         mapper.readValue(content, object : TypeReference<T>(){})
-    }
-    catch (t: JsonProcessingException) {
+    } catch (t: JsonProcessingException) {
         throw BombardierMappingException(content, T::class.java, t)
     }
 }

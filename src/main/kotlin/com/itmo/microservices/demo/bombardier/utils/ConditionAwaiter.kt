@@ -34,6 +34,7 @@ class ConditionAwaiter(
 
         val waitUpTo = System.currentTimeMillis() + unit.toMillis(period)
         while (System.currentTimeMillis() <= waitUpTo) {
+            delay(pollingPeriod.toMillis())
             try {
                 if (condition!!()) {
                     successClosure.invoke()
@@ -43,7 +44,6 @@ class ConditionAwaiter(
                 failureClosure.invoke(th)
                 return
             }
-            delay(pollingPeriod.toMillis())
         }
         failureClosure.invoke(null)
     }

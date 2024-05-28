@@ -22,28 +22,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
-class CachedResponseBody internal constructor(_body: ResponseBody) {
-    private val string: String
 
-    init {
-        string = _body.string()
-    }
-
-    fun string() = string
-}
-
-class TrimmedResponse private constructor(
-    private val body: CachedResponseBody,
+data class TrimmedResponse(
+    private val body: String,
     private val code: Int,
     private val req: Request
 ) {
-    companion object {
-        fun fromResponse(resp: Response): TrimmedResponse {
-            return TrimmedResponse(CachedResponseBody(resp.body()!!), resp.code(), resp.request()).apply {
-                resp.close()
-            }
-        }
-    }
 
     fun body() = body
     fun code() = code
@@ -70,8 +54,7 @@ open class ExternalServiceApiCommunicator(
             "password" to password
         )
     }.run {
-        val resp = body().string()
-        mapper.readValue(resp, TokenResponse::class.java).toExternalServiceToken(descriptor.url)
+        mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
     }
 
     protected suspend fun reauthenticate(token: ExternalServiceToken) =
@@ -80,7 +63,7 @@ open class ExternalServiceApiCommunicator(
             post()
             header(HttpHeaders.AUTHORIZATION, "Bearer ${token.refreshToken}")
         }.run {
-            mapper.readValue(body().string(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
+            mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
         }
 
     suspend fun execute(method: String, url: String) = execute(method, url) {}
@@ -114,24 +97,24 @@ open class ExternalServiceApiCommunicator(
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    if (HttpStatus.Series.resolve(response.code()) == HttpStatus.Series.SUCCESSFUL) {
-                        try {
-                            it.resume(TrimmedResponse.fromResponse(response))
-                        } catch (t: Throwable) {
-                            it.resumeWithException(t)
+                    response.use { resp ->
+                        if (HttpStatus.Series.resolve(resp.code()) == HttpStatus.Series.SUCCESSFUL) {
+                            try {
+                                it.resume(TrimmedResponse(resp.body()?.string() ?: "", resp.code(), req))
+                            } catch (t: Throwable) {
+                                it.resumeWithException(t)
+                            }
+                        } else {
+                            it.resumeWithException(
+                                InvalidExternalServiceResponseException(
+                                    resp.code(),
+                                    "${resp.request().method()} ${
+                                        resp.request().url()
+                                    } External service returned non-OK code: ${resp.code()}\n\n${resp.body()?.string()}"
+                                )
+                            )
                         }
-                        return
                     }
-
-                    it.resumeWithException(
-                        InvalidExternalServiceResponseException(
-                            response.code(),
-                            response,
-                            "${response.request().method()} ${
-                                response.request().url()
-                            } External service returned non-OK code: ${response.code()}\n\n${response.body()?.string()}"
-                        )
-                    )
                 }
             })
         }
@@ -197,37 +180,37 @@ class CallContext(
 
 class HttpClientsManager {
     companion object {
-        private val CALL_TIMEOUT = Duration.ofSeconds(60)
-        private val READ_TIMEOUT = Duration.ofSeconds(60)
-        private val WRITE_TIMEOUT = Duration.ofSeconds(60)
-        private const val NUMBER_OF_CLIENTS = 32
-        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 3 * 128
+        private val CALL_TIMEOUT = Duration.ofSeconds(10)
+        private val READ_TIMEOUT = Duration.ofSeconds(10)
+        private val WRITE_TIMEOUT = Duration.ofSeconds(10)
+        private const val NUMBER_OF_CLIENTS = 16
+        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 32
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
 
-    private val clients = ConcurrentHashMap<String, OkHttpClient>(25)
-    private val dispatchers = ConcurrentHashMap<String, Dispatcher>(25)
+    private val clients = ConcurrentHashMap<Int, OkHttpClient>(5)
+    private val dispatchers = ConcurrentHashMap<Int, Dispatcher>(5)
 
     fun getClient(testIdentifier: String): OkHttpClient {
-//        val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
+        val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
 
-        val dispatcher = dispatchers.computeIfAbsent(testIdentifier) {
+        val dispatcher = dispatchers.computeIfAbsent(hash) {
             Executors.newFixedThreadPool(
                 NUMBER_OF_THREADS_PER_EXECUTOR,
-                NamedThreadFactory("external-service-executor-$testIdentifier")
+                NamedThreadFactory("external-service-executor-$hash")
             ).also {
-                Metrics.executorServiceMonitoring(it, "external-service-executor-$testIdentifier")
+                Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
             }.let {
                 Dispatcher(it).also {
-                    it.maxRequests = 4096
-                    it.maxRequestsPerHost = 4096
+                    it.maxRequests = 1000
+                    it.maxRequestsPerHost = 1000
                 }
             }
         }
 
         // abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
-        return clients.computeIfAbsent(testIdentifier) {
+        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS) {
             logger.info("Creating new http client for test $testIdentifier")
             OkHttpClient.Builder().run {
                 dispatcher(dispatcher)
@@ -275,7 +258,7 @@ class HttpClientsManager {
                         }
                     }
                 })
-                connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
+                connectionPool(ConnectionPool(1024, 30, TimeUnit.SECONDS))
                 build()
             }
         }

@@ -39,7 +39,7 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    private val executor: ExecutorService = Executors.newFixedThreadPool(16, NamedThreadFactory("test-controller-executor")).also {
+    private val executor: ExecutorService = Executors.newFixedThreadPool(128, NamedThreadFactory("test-controller-executor")).also {
         Metrics.executorServiceMonitoring(it, "test-controller-executor")
     }
 
@@ -56,7 +56,7 @@ class TestController(
 //        orderChangeItemsAfterFinalizationStage.asErrorFree(),
 //        orderFinalizingStage.asErrorFree(),
 //        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderPaymentStage.asErrorFree().asMetricRecordable().asRetryable(),
+        orderPaymentStage.asErrorFree().asMetricRecordable(),
 //        orderDeliveryStage.asErrorFree()
     )
 

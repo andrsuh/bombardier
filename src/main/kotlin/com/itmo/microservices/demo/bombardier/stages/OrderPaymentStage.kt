@@ -11,8 +11,13 @@ import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.common.metrics.Metrics
+import io.micrometer.core.instrument.util.NamedThreadFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
 import org.springframework.stereotype.Component
 import java.time.Duration
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -40,8 +45,6 @@ class OrderPaymentStage : TestStage {
 
         eventLogger.info(I_PAYMENT_STARTED, order, paymentDetails.attempt)
 
-//        paymentDetails.startedAt = System.currentTimeMillis()
-
         val paymentSubmissionDto = externalServiceApi.payOrder(
             testCtx().userId!!,
             testCtx().orderId!!
@@ -49,8 +52,8 @@ class OrderPaymentStage : TestStage {
 
         eventLog.info(I_STARTED_PAYMENT, testCtx().orderId!!, paymentSubmissionDto.timestamp, paymentSubmissionDto.transactionId)
 
-        val paymentSubmissionTimeout = 15L
-        ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(5))
+        val paymentSubmissionTimeout = 20L
+        ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(15))
             .condition {
                 order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
                 order.status == OrderStatus.OrderPaymentInProgress || order.status == OrderStatus.OrderPayed || order.status == OrderStatus.OrderPaymentFailed
@@ -70,9 +73,9 @@ class OrderPaymentStage : TestStage {
         eventLog.info(I_START_WAITING_FOR_PAYMENT_RESULT, testCtx().orderId!!, paymentSubmissionDto.transactionId, startWaitingPayment - paymentSubmissionDto.timestamp)
 
 
-        val awaitingTime = 80L + 20L
+        val awaitingTime = 80L + 25L
 
-        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(25))
+        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(30))
             .condition {
                 externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
                     .any { it.transactionId == paymentSubmissionDto.transactionId }
