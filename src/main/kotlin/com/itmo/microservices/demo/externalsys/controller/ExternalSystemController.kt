@@ -188,6 +188,18 @@ class ExternalSystemController(
                 window = SemaphoreOngoingWindow(10),
                 price = (basePrice * 0.3).toInt()
             )
+
+            // default 8
+            val accName8 = "default-8"
+            accounts["${service.name}-$accName8"] = Account(
+                service.name,
+                accName8,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 4_000, errorResponseProbability = 0.07),
+                rateLimiter = makeRateLimiter(accName8, 20, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(15),
+                price = (basePrice * 0.3).toInt()
+            )
         }
     }
 
@@ -240,6 +252,7 @@ class ExternalSystemController(
     data class Slo(
         val upperLimitInvocationMillis: Long = 10_000,
         val fullBlockingProbability: Double = 0.0,
+        val errorResponseProbability: Double = -1.0,
     )
 
     @PostMapping("/process")
@@ -289,7 +302,8 @@ class ExternalSystemController(
                     .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "SUCCESS")
                     .externalSysDurationRecord(System.currentTimeMillis() - start)
 
-                return ResponseEntity.ok(Response(true)).also {
+                val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
+                return ResponseEntity.ok(Response(result)).also {
                     account.window.release()
                 }
             } else {
