@@ -2,16 +2,15 @@ package com.itmo.microservices.demo.externalsys.controller
 
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.common.SemaphoreOngoingWindow
+import com.itmo.microservices.demo.common.SuspendableAwaiter
 import com.itmo.microservices.demo.common.makeRateLimiter
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.github.resilience4j.ratelimiter.RateLimiter
-import io.github.resilience4j.ratelimiter.RateLimiterConfig
-import io.github.resilience4j.ratelimiter.RateLimiterRegistry
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import java.time.Duration
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -21,7 +20,8 @@ import kotlin.random.Random
 @RestController
 @RequestMapping("/external")
 class ExternalSystemController(
-    private val services: KnownServices
+    private val services: KnownServices,
+    private val merger: SuspendableAwaiter<UUID, Boolean, Boolean>
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
@@ -104,7 +104,7 @@ class ExternalSystemController(
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
-            // default 1 -> almost no restrictions
+            // default 1
             val basePrice = 100
             val accName1 = "default-1"
             accounts["${service.name}-$accName1"] = Account(
@@ -259,7 +259,8 @@ class ExternalSystemController(
     suspend fun process(
         @RequestParam serviceName: String,
         @RequestParam accountName: String,
-        @RequestParam transactionId: String
+        @RequestParam transactionId: String,
+        @RequestParam paymentId: String,
     ): ResponseEntity<Response> {
         val start = System.currentTimeMillis()
 
@@ -303,6 +304,17 @@ class ExternalSystemController(
                     .externalSysDurationRecord(System.currentTimeMillis() - start)
 
                 val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
+
+                coroutineScope {
+                    launch {
+                        try {
+                            withTimeout(200) {
+                                merger.putSecondValueAndWaitForFirst(UUID.fromString(paymentId), result)
+                            }
+                        } catch (ignored: TimeoutCancellationException) { }
+                    }
+                }
+
                 return ResponseEntity.ok(Response(result)).also {
                     account.window.release()
                 }
