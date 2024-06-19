@@ -184,7 +184,7 @@ class HttpClientsManager {
         private val READ_TIMEOUT = Duration.ofSeconds(10)
         private val WRITE_TIMEOUT = Duration.ofSeconds(10)
         private const val NUMBER_OF_CLIENTS = 16
-        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 32
+        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 128
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
