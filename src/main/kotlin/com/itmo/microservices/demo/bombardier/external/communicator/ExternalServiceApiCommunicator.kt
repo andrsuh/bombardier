@@ -203,8 +203,8 @@ class HttpClientsManager {
                 Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
             }.let {
                 Dispatcher(it).also {
-                    it.maxRequests = 5000
-                    it.maxRequestsPerHost = 5000
+                    it.maxRequests = 15000
+                    it.maxRequestsPerHost = 15000
                 }
             }
         }
