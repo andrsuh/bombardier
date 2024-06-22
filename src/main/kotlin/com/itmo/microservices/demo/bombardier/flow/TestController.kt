@@ -145,7 +145,8 @@ class TestController(
             testingFlow.testFlowCoroutine + TestContext(
                 serviceName = serviceName,
                 launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
-                totalTestsNumber = testingFlow.testParams.numberOfTests
+                totalTestsNumber = testingFlow.testParams.numberOfTests,
+                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact
             )
         ) {
             testStages.forEach { stage ->
@@ -188,6 +189,7 @@ data class TestContext(
     var wasChangedAfterFinalization: Boolean = false,
     var launchTestsRatePerSec: Int,
     var totalTestsNumber: Int,
+    val testSuccessByThePaymentFact: Boolean = false,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
@@ -211,4 +213,5 @@ data class TestParameters(
 //    val parallelProcessesNumber: Int,
     val numberOfTests: Int = 100,
     val ratePerSecond: Int = 10,
+    val testSuccessByThePaymentFact: Boolean = false,
 )

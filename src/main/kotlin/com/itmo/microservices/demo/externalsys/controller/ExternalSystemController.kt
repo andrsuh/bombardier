@@ -1,5 +1,7 @@
 package com.itmo.microservices.demo.externalsys.controller
 
+import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
+import com.itmo.microservices.demo.bombardier.external.PaymentStatus
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
 import com.itmo.microservices.demo.common.SemaphoreOngoingWindow
 import com.itmo.microservices.demo.common.SuspendableAwaiter
@@ -21,7 +23,7 @@ import kotlin.random.Random
 @RequestMapping("/external")
 class ExternalSystemController(
     private val services: KnownServices,
-    private val merger: SuspendableAwaiter<UUID, Boolean, Boolean>
+    private val merger: SuspendableAwaiter<UUID, Boolean, PaymentLogRecord>
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
@@ -46,9 +48,9 @@ class ExternalSystemController(
 //                service.name,
 //                accName1,
 //                null,
-//                slo = Slo(upperLimitInvocationMillis = 1000),
-//                rateLimiter = makeRateLimiter(accName1, 100, TimeUnit.SECONDS),
-//                window = SemaphoreOngoingWindow(1000),
+//                slo = Slo(upperLimitInvocationMillis = 30),
+//                rateLimiter = makeRateLimiter(accName1, 2100, TimeUnit.SECONDS),
+//                window = SemaphoreOngoingWindow(20000),
 //                price = basePrice
 //            )
 //
@@ -308,8 +310,16 @@ class ExternalSystemController(
                 coroutineScope {
                     launch {
                         try {
-                            withTimeout(200) {
-                                merger.putSecondValueAndWaitForFirst(UUID.fromString(paymentId), result)
+                            if (result) {
+                                withTimeout(200) {
+                                    merger.putSecondValueAndWaitForFirst(
+                                        UUID.fromString(paymentId),
+                                        PaymentLogRecord(
+                                            System.currentTimeMillis(),
+                                            PaymentStatus.SUCCESS, totalAmount, UUID.fromString(paymentId)
+                                        )
+                                    )
+                                }
                             }
                         } catch (ignored: TimeoutCancellationException) { }
                     }

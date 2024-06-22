@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 
 @Component
 class OrderPaymentStage(
-    val merger: SuspendableAwaiter<UUID, Boolean, Boolean>
+    val merger: SuspendableAwaiter<UUID, Boolean, PaymentLogRecord>
 ) : TestStage {
     companion object {
         const val paymentOutcome = "outcome"
@@ -53,8 +53,7 @@ class OrderPaymentStage(
             paymentSubmissionDto.timestamp,
             paymentSubmissionDto.transactionId
         )
-
-        try {
+        var logRecord: PaymentLogRecord? = try {
             withTimeout(Duration.ofSeconds(80).toMillis()) {
                 merger.putFirstValueAndWaitForSecond(paymentSubmissionDto.transactionId, true)
             }
@@ -89,40 +88,41 @@ class OrderPaymentStage(
 //                throw TestStage.TestStageFailedException("Exception instead of silently fail")
 //            }.startWaiting()
 
-        val startWaitingPayment = System.currentTimeMillis()
-        eventLog.info(
-            I_START_WAITING_FOR_PAYMENT_RESULT,
-            testCtx().orderId!!,
-            paymentSubmissionDto.transactionId,
-            startWaitingPayment - paymentSubmissionDto.timestamp
-        )
+        if (!testCtx().testSuccessByThePaymentFact) {
+            val startWaitingPayment = System.currentTimeMillis()
+            eventLog.info(
+                I_START_WAITING_FOR_PAYMENT_RESULT,
+                testCtx().orderId!!,
+                paymentSubmissionDto.transactionId,
+                startWaitingPayment - paymentSubmissionDto.timestamp
+            )
 
 
-        val awaitingTime = 80L + 35L
+            val awaitingTime = 80L + 35L
 
-        var logRecord: PaymentLogRecord? = null
-        ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(30))
-            .condition {
-                logRecord = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
-                    .find { it.transactionId == paymentSubmissionDto.transactionId }
+            ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(30))
+                .condition {
+                    logRecord = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
+                        .find { it.transactionId == paymentSubmissionDto.transactionId }
 
-                logRecord != null
-            }
-            .onFailure {
-                eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, testCtx().orderId)
-                if (it != null) {
-                    throw it
+                    logRecord != null
                 }
-                Metrics
-                    .withTags(
-                        Metrics.serviceLabel to testCtx().serviceName,
-                        paymentOutcome to "FAIL",
-                        paymentFailureReason to "NO_OUTCOME"
-                    )
-                    .paymentFinished()
+                .onFailure {
+                    eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, testCtx().orderId)
+                    if (it != null) {
+                        throw it
+                    }
+                    Metrics
+                        .withTags(
+                            Metrics.serviceLabel to testCtx().serviceName,
+                            paymentOutcome to "FAIL",
+                            paymentFailureReason to "NO_OUTCOME"
+                        )
+                        .paymentFinished()
 
-                throw TestStage.TestStageFailedException("Exception instead of silently fail")
-            }.startWaiting()
+                    throw TestStage.TestStageFailedException("Exception instead of silently fail")
+                }.startWaiting()
+        }
 
         val paymentTimeout = 80L
         val paymentLogRecord = logRecord!!

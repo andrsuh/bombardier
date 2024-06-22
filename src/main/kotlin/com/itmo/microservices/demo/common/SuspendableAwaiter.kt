@@ -55,7 +55,6 @@ class SuspendableAwaiter<Key, FirstClientValue, SecondClientValue>(
                 }
 
                 null -> {
-                    it.resume(null)
                 }
             }
         }
@@ -69,8 +68,8 @@ class SuspendableAwaiter<Key, FirstClientValue, SecondClientValue>(
 
             val exhaustive = when (val existing = mergerData.put(key, mergeData)) {
                 is SecondClientData -> {
-                    it.resume(existing.valueForFirstClient)
                     existing.continuation.resume(value)
+                    it.resume(existing.valueForFirstClient)
                 }
 
                 is FirstClientData -> {
@@ -82,7 +81,6 @@ class SuspendableAwaiter<Key, FirstClientValue, SecondClientValue>(
                 }
 
                 null -> {
-                    it.resume(null)
                 }
             }
         }

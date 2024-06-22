@@ -81,6 +81,7 @@ class BombardierController(
                 numberOfUsers = request.usersCount,
                 numberOfTests = request.testCount,
                 ratePerSecond = request.ratePerSecond,
+                testSuccessByThePaymentFact = request.testSuccessByThePaymentFact
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()

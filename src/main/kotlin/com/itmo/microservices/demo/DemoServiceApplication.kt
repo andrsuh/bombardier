@@ -1,5 +1,6 @@
 package com.itmo.microservices.demo
 
+import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
 import com.itmo.microservices.demo.common.SuspendableAwaiter
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -12,7 +13,7 @@ import java.util.*
 @Configuration
 class DemoServiceApplication {
     @Bean
-    fun merger(): SuspendableAwaiter<UUID, Boolean, Boolean> {
+    fun merger(): SuspendableAwaiter<UUID, Boolean, PaymentLogRecord> {
         return SuspendableAwaiter()
     }
 }

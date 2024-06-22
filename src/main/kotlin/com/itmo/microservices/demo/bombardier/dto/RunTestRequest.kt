@@ -5,4 +5,5 @@ data class RunTestRequest(
     val usersCount: Int,
     val testCount: Int,
     val ratePerSecond: Int,
+    val testSuccessByThePaymentFact: Boolean = false,
 )
