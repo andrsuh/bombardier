@@ -258,7 +258,7 @@ class HttpClientsManager {
                         }
                     }
                 })
-                connectionPool(ConnectionPool(1024, 30, TimeUnit.SECONDS))
+                connectionPool(ConnectionPool(20, 30, TimeUnit.SECONDS))
                 build()
             }
         }
