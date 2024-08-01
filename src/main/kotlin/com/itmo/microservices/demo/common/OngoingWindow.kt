@@ -1,8 +1,6 @@
 package com.itmo.microservices.demo.common
 
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicInteger
 
 class OngoingWindow(
@@ -43,15 +41,8 @@ class SemaphoreOngoingWindow(
 ) {
     private val window = Semaphore(maxWinSize)
 
-    suspend fun acquire(): Boolean {
-        return try {
-            withTimeout(1000) {
-                window.acquire()
-                true
-            }
-        } catch (e: TimeoutCancellationException) {
-            false
-        }
+    suspend fun tryAcquire(): Boolean {
+        return window.tryAcquire()
     }
 
     fun release() = window.release()

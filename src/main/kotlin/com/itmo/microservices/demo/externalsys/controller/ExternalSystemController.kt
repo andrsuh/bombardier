@@ -268,14 +268,14 @@ class ExternalSystemController(
 
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
 
-        if (Random.nextDouble(0.0, 1.0) < account.slo.fullBlockingProbability) {
-            blockList[accountName] = true
-        }
-
-        if (blockList[accountName] == true) {
-            delay(Random.nextLong(account.slo.upperLimitInvocationMillis * 10))
-            blockList[accountName] = false
-        }
+//        if (Random.nextDouble(0.0, 1.0) < account.slo.fullBlockingProbability) {
+//            blockList[accountName] = true
+//        }
+//
+//        if (blockList[accountName] == true) {
+//            delay(Random.nextLong(account.slo.upperLimitInvocationMillis * 10))
+//            blockList[accountName] = false
+//        }
 
         val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.let {
             it.addAndGet(account.price)
@@ -296,7 +296,7 @@ class ExternalSystemController(
         }
 
         try {
-            if (account.window.acquire()) {
+            if (account.window.tryAcquire()) {
                 val duration = Random.nextLong(0, account.slo.upperLimitInvocationMillis)
                 delay(duration)
                 logger.info("[external] - Transaction $transactionId. Duration: $duration")
@@ -346,6 +346,9 @@ class ExternalSystemController(
             }
         } catch (e: Exception) {
             account.window.release()
+            Metrics
+                .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "UNEXPECTED_ERROR")
+                .externalSysDurationRecord(System.currentTimeMillis() - start)
             throw e
         }
     }
