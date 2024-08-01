@@ -301,9 +301,6 @@ class ExternalSystemController(
                 delay(duration)
                 logger.info("[external] - Transaction $transactionId. Duration: $duration")
 
-                Metrics
-                    .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "SUCCESS")
-                    .externalSysDurationRecord(System.currentTimeMillis() - start)
 
                 val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
 
@@ -324,6 +321,10 @@ class ExternalSystemController(
                         } catch (ignored: TimeoutCancellationException) { }
                     }
                 }
+
+                Metrics
+                    .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "SUCCESS")
+                    .externalSysDurationRecord(System.currentTimeMillis() - start)
 
                 return ResponseEntity.ok(Response(result)).also {
                     account.window.release()
