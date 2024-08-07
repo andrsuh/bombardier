@@ -5,8 +5,11 @@ import com.itmo.microservices.demo.bombardier.external.communicator.ExternalServ
 import com.itmo.microservices.demo.bombardier.external.communicator.InvalidExternalServiceResponseException
 import com.itmo.microservices.demo.bombardier.external.communicator.UserAwareExternalServiceApiCommunicator
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
+import com.itmo.microservices.demo.bombardier.external.communicator.mapper
 import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import java.net.http.HttpRequest.BodyPublishers
 import java.util.*
 
 class UserNotAuthenticatedException(username: String) : Exception(username)
@@ -33,10 +36,10 @@ class RealExternalService(
             "createUser",
             "/users",
         ) {
-            jsonPost(
-                "name" to name,
-                "password" to "pwd_$name"
-            )
+            this.POST(BodyPublishers.ofString(
+                mapper.writeValueAsString(mapOf("name" to name, "password" to "pwd_$name"))
+            ))
+            header(HttpHeaders.CONTENT_TYPE, "application/json")
         }
 
         communicator.authenticate(name, "pwd_$name")
@@ -57,7 +60,7 @@ class RealExternalService(
         val session = getUserSession(userId)
 
         return communicator.executeWithAuthAndDeserialize("createOrder", "/orders?userId=${userId}&price=${price}", session) {
-            post()
+            POST(BodyPublishers.noBody())
         }
     }
 
@@ -81,7 +84,7 @@ class RealExternalService(
 
         val code = try {
             communicator.executeWithAuth("putItemToOrder", "/orders/$orderId/items/$itemId?amount=$amount", session) {
-                put()
+                PUT(BodyPublishers.noBody())
             }
         } catch (e: InvalidExternalServiceResponseException) {
             if (e.code != badCode) {
@@ -97,7 +100,7 @@ class RealExternalService(
         val session = getUserSession(userId)
 
         return communicator.executeWithAuthAndDeserialize("bookOrder", "/orders/$orderId/bookings", session) {
-            post()
+            POST(BodyPublishers.noBody())
         }
     }
 
@@ -115,7 +118,7 @@ class RealExternalService(
             "/orders/$orderId/delivery?slot=${slot}",
             session
         ) {
-            post()
+            POST(BodyPublishers.noBody())
         }
     }
 
@@ -123,7 +126,7 @@ class RealExternalService(
         val session = getUserSession(userId)
 
         return communicator.executeWithAuthAndDeserialize("payOrder", "/orders/$orderId/payment", session) {
-            post()
+            POST(BodyPublishers.noBody())
         }
     }
 

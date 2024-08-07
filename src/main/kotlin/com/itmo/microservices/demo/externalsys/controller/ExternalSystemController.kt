@@ -114,8 +114,8 @@ class ExternalSystemController(
                 accName1,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 40_000),
-                rateLimiter = makeRateLimiter(accName1, 100, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(2000),
+                rateLimiter = makeRateLimiter(accName1, 500, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(8500),
                 price = basePrice
             )
 
@@ -264,6 +264,10 @@ class ExternalSystemController(
         @RequestParam transactionId: String,
         @RequestParam paymentId: String,
     ): ResponseEntity<Response> {
+        Metrics
+            .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
+            .externalSysRequestSubmitted()
+
         val start = System.currentTimeMillis()
 
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")

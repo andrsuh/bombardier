@@ -8,7 +8,6 @@ import okhttp3.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import java.io.IOException
 import java.net.URL
 import java.time.Duration
 import kotlin.coroutines.resume
@@ -16,9 +15,14 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpRequest.BodyPublishers
+import java.net.http.HttpResponse
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
@@ -26,7 +30,7 @@ import kotlin.math.abs
 data class TrimmedResponse(
     private val body: String,
     private val code: Int,
-    private val req: Request
+    private val req: HttpRequest
 ) {
 
     fun body() = body
@@ -49,10 +53,11 @@ open class ExternalServiceApiCommunicator(
     )
 
     open suspend fun authenticate(username: String, password: String) = execute("authenticate", "/authentication") {
-        jsonPost(
-            "name" to username,
-            "password" to password
-        )
+        POST(
+            BodyPublishers.ofString(
+            mapper.writeValueAsString(mapOf("name" to username, "password" to password))
+        ))
+        header(HttpHeaders.CONTENT_TYPE, "application/json")
     }.run {
         mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
     }
@@ -60,7 +65,8 @@ open class ExternalServiceApiCommunicator(
     protected suspend fun reauthenticate(token: ExternalServiceToken) =
         execute("reauthenticate", "/authentication/refresh") {
             assert(!token.isRefreshTokenExpired())
-            post()
+            POST(BodyPublishers.noBody())
+            header(HttpHeaders.CONTENT_TYPE, "application/json")
             header(HttpHeaders.AUTHORIZATION, "Bearer ${token.refreshToken}")
         }.run {
             mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
@@ -71,52 +77,97 @@ open class ExternalServiceApiCommunicator(
     suspend fun execute(
         externalApiMethod: String,
         url: String,
-        builderContext: CustomRequestBuilder.() -> Unit
+        builderContext: HttpRequest.Builder.() -> Unit
     ): TrimmedResponse {
-        val requestBuilder = CustomRequestBuilder(descriptor.url).apply {
-            _url(url)
+//        val requestBuilder = CustomRequestBuilder(descriptor.url).apply {
+//            _url(url)
+//            builderContext(this)
+//        }
+
+        val finalUrl = "${descriptor.url}$url"
+        val req = HttpRequest.newBuilder()
+            .uri(URI(finalUrl))
+//            .POST(HttpRequest.BodyPublishers.noBody())
+            .apply {
+//            _url(url)
             builderContext(this)
-        }
+        }.build()
+
         val testId = coroutineContext[TestCtxKey]?.testId?.toString()
 
         return suspendCoroutine {
             val submissionTime = System.currentTimeMillis()
             val serviceName = descriptor.name
 
-            val req = requestBuilder
-                .tag(CallContext::class.java, CallContext(serviceName, externalApiMethod, submissionTime))
-                .build()
+//            val req = requestBuilder
+//                .tag(CallContext::class.java, CallContext(serviceName, externalApiMethod, submissionTime))
+//                .build()
 
-            if (req.method() != "GET") {
-                logger.info("sending request to ${req.method()} ${req.url().url()}")
-            }
 
-            httpClientsManager.getClient(externalApiMethod).newCall(req).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    it.resumeWithException(e)
-                }
+//            if (req.method() != "GET") {
+//                logger.info("sending request to ${req.method()} ${req.url().url()}")
+//            }
 
-                override fun onResponse(call: Call, response: Response) {
-                    response.use { resp ->
-                        if (HttpStatus.Series.resolve(resp.code()) == HttpStatus.Series.SUCCESSFUL) {
-                            try {
-                                it.resume(TrimmedResponse(resp.body()?.string() ?: "", resp.code(), req))
-                            } catch (t: Throwable) {
-                                it.resumeWithException(t)
-                            }
-                        } else {
-                            it.resumeWithException(
-                                InvalidExternalServiceResponseException(
-                                    resp.code(),
-                                    "${resp.request().method()} ${
-                                        resp.request().url()
-                                    } External service returned non-OK code: ${resp.code()}\n\n${resp.body()?.string()}"
-                                )
+            Metrics.withTags(
+                    "service" to serviceName,
+                    "method" to externalApiMethod
+                )
+                .timeHttpRequestLatent(System.currentTimeMillis() - submissionTime)
+
+            httpClientsManager.getClient(externalApiMethod).sendAsync(req, HttpResponse.BodyHandlers.ofString())
+                .thenApply { resp ->
+                    if (HttpStatus.Series.resolve(resp.statusCode()) == HttpStatus.Series.SUCCESSFUL) {
+                        Metrics
+                            .withTags(
+                                "service" to serviceName,
+                                "method" to externalApiMethod,
+                                "result" to "OK"
                             )
+                            .externalMethodDurationRecord(System.currentTimeMillis() - submissionTime)
+                        try {
+                            it.resume(TrimmedResponse(resp.body(), resp.statusCode(), req))
+                        } catch (t: Throwable) {
+                            it.resumeWithException(t)
                         }
+                    } else {
+                        Metrics
+                            .withTags(
+                                "service" to serviceName,
+                                "method" to externalApiMethod,
+                                "result" to "CODE-${resp.statusCode()}"
+                            )
+                            .externalMethodDurationRecord(System.currentTimeMillis() - submissionTime)
+                        it.resumeWithException(
+                            InvalidExternalServiceResponseException(
+                                resp.statusCode(),
+                                "${resp.request().method()} ${
+                                    resp.request().uri()
+                                } External service returned non-OK code: ${resp.statusCode()}\n\n${resp.body()}"
+                            )
+                        )
                     }
                 }
-            })
+                .exceptionally { th ->
+                    Metrics
+                        .withTags(
+                            "service" to serviceName,
+                            "method" to externalApiMethod,
+                            "result" to "FAILED"
+                        )
+                        .externalMethodDurationRecord(System.currentTimeMillis() - submissionTime)
+                    it.resumeWithException(th)
+                }
+
+
+
+//            httpClientsManager.getClient(externalApiMethod).newCall(req).enqueue(object : Callback {
+//                override fun onFailure(call: Call, e: IOException) {
+//                }
+//
+//                override fun onResponse(call: Call, response: Response) {
+//
+//                }
+//            })
         }
     }
 
@@ -127,7 +178,7 @@ open class ExternalServiceApiCommunicator(
         method: String,
         url: String,
         credentials: ExternalServiceToken,
-        builderContext: CustomRequestBuilder.() -> Unit
+        builderContext: HttpRequest.Builder.() -> Unit
     ): TrimmedResponse {
         return execute(method, url) {
             if (props.authEnabled) {
@@ -189,79 +240,90 @@ class HttpClientsManager {
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }
 
-    private val clients = ConcurrentHashMap<Int, OkHttpClient>(5)
+    private val clients = ConcurrentHashMap<Int, HttpClient>(5)
     private val dispatchers = ConcurrentHashMap<Int, Dispatcher>(5)
+    private val executors = ConcurrentHashMap<Int, ExecutorService>(5)
 
-    fun getClient(testIdentifier: String): OkHttpClient {
+    fun getClient(testIdentifier: String): HttpClient {
         val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
 
-        val dispatcher = dispatchers.computeIfAbsent(hash) {
+        executors.computeIfAbsent(hash) {
             Executors.newFixedThreadPool(
                 NUMBER_OF_THREADS_PER_EXECUTOR,
                 NamedThreadFactory("external-service-executor-$hash")
             ).also {
                 Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
-            }.let {
-                Dispatcher(it).also {
-                    it.maxRequests = 15000
-                    it.maxRequestsPerHost = 15000
-                }
             }
+//                .also {
+//                Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
+//            }.let {
+//                Dispatcher(it).also {
+//                    it.maxRequests = 15000
+//                    it.maxRequestsPerHost = 15000
+//                }
+//            }
         }
 
-        // abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
-        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS) {
+        return clients.computeIfAbsent(hash) {
             logger.info("Creating new http client for test $testIdentifier")
-            OkHttpClient.Builder().run {
-                dispatcher(dispatcher)
-                // protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
-                protocols(mutableListOf(Protocol.H2_PRIOR_KNOWLEDGE))
-                callTimeout(CALL_TIMEOUT)
-                readTimeout(READ_TIMEOUT)
-                writeTimeout(WRITE_TIMEOUT)
-                this.eventListener(object : EventListener() {
-
-                    override fun callStart(call: Call) {
-                        call.request().tag(CallContext::class.java)?.let {
-                            Metrics
-                                .withTags(
-                                    "service" to it.serviceName,
-                                    "method" to it.externalApiEndpoint
-                                )
-                                .timeHttpRequestLatent(System.currentTimeMillis() - it.submissionTime)
-                        }
-                    }
-
-                    override fun callEnd(call: Call) {
-                        call.request().tag(CallContext::class.java)?.let {
-                            val endTime = System.currentTimeMillis()
-                            Metrics
-                                .withTags(
-                                    "service" to it.serviceName,
-                                    "method" to it.externalApiEndpoint,
-                                    "result" to "OK"
-                                )
-                                .externalMethodDurationRecord(endTime - it.startTime)
-                        }
-                    }
-
-                    override fun callFailed(call: Call, ioe: IOException) {
-                        call.request().tag(CallContext::class.java)?.let {
-                            val endTime = System.currentTimeMillis()
-                            Metrics
-                                .withTags(
-                                    "service" to it.serviceName,
-                                    "method" to it.externalApiEndpoint,
-                                    "result" to "FAILED"
-                                )
-                                .externalMethodDurationRecord(endTime - it.startTime)
-                        }
-                    }
-                })
-                connectionPool(ConnectionPool(20, 30, TimeUnit.SECONDS))
-                build()
-            }
+            HttpClient.newBuilder()
+                .executor(executors[hash])
+                .version(HttpClient.Version.HTTP_2)
+                .build()
         }
+
+//        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS) {
+//            logger.info("Creating new http client for test $testIdentifier")
+//            OkHttpClient.Builder().run {
+//                dispatcher(dispatcher)
+//                // protocols(mutableListOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+//                protocols(mutableListOf(Protocol.H2_PRIOR_KNOWLEDGE))
+//                callTimeout(CALL_TIMEOUT)
+//                readTimeout(READ_TIMEOUT)
+//                writeTimeout(WRITE_TIMEOUT)
+//                this.eventListener(object : EventListener() {
+//
+//                    override fun callStart(call: Call) {
+//                        call.request().tag(CallContext::class.java)?.let {
+//                            Metrics
+//                                .withTags(
+//                                    "service" to it.serviceName,
+//                                    "method" to it.externalApiEndpoint
+//                                )
+//                                .timeHttpRequestLatent(System.currentTimeMillis() - it.submissionTime)
+//                        }
+//                    }
+//
+//                    override fun callEnd(call: Call) {
+//                        call.request().tag(CallContext::class.java)?.let {
+//                            val endTime = System.currentTimeMillis()
+//                            Metrics
+//                                .withTags(
+//                                    "service" to it.serviceName,
+//                                    "method" to it.externalApiEndpoint,
+//                                    "result" to "OK"
+//                                )
+//                                .externalMethodDurationRecord(endTime - it.startTime)
+//                        }
+//                    }
+//
+//                    override fun callFailed(call: Call, ioe: IOException) {
+//                        call.request().tag(CallContext::class.java)?.let {
+//                            val endTime = System.currentTimeMillis()
+//                            Metrics
+//                                .withTags(
+//                                    "service" to it.serviceName,
+//                                    "method" to it.externalApiEndpoint,
+//                                    "result" to "FAILED"
+//                                )
+//                                .externalMethodDurationRecord(endTime - it.startTime)
+//                        }
+//                    }
+//                })
+//                connectionPool(ConnectionPool(20, 30, TimeUnit.SECONDS))
+//                build()
+//            }
+//        }
 
     }
 

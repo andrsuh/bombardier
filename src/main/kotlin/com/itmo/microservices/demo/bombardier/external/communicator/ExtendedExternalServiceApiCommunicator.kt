@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.util.NamedThreadFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
+import java.net.http.HttpRequest
 import java.util.concurrent.Executors
 
 open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor, props: BombardierProperties) :
@@ -33,7 +34,7 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
     suspend inline fun <reified T> executeWithDeserialize(
         method: String,
         url: String,
-        noinline builderContext: CustomRequestBuilder.() -> Unit
+        noinline builderContext: HttpRequest.Builder.() -> Unit
     ): T {
         val res = execute(method, url, builderContext)
         return try {
@@ -41,7 +42,7 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
                 readValueBombardier(res.body())
             }.await()
         } catch (t: BombardierMappingException) {
-            throw t.exceptionWithUrl("${res.request().method()} ${res.request().url()}")
+            throw t.exceptionWithUrl("${res.request().method()} ${res.request().uri()}")
         }
     }
 
@@ -49,7 +50,7 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
         method: String,
         url: String,
         credentials: ExternalServiceToken,
-        noinline builderContext: CustomRequestBuilder.() -> Unit
+        noinline builderContext: HttpRequest.Builder.() -> Unit
     ): T {
         val res = executeWithAuth(method, url, credentials, builderContext)
         return try {
@@ -57,7 +58,7 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
                 readValueBombardier(res.body())
             }.await()
         } catch (t: BombardierMappingException) {
-            throw t.exceptionWithUrl("${res.request().method()} ${res.request().url()}")
+            throw t.exceptionWithUrl("${res.request().method()} ${res.request().uri()}")
         }
     }
 }

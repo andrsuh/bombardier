@@ -14,6 +14,7 @@ server:
     include-message: always
     include-stacktrace: always
 
+
 security:
   secret: secret12345678
   token-lifetime: 15m

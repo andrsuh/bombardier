@@ -24,6 +24,7 @@ class Metrics(private val tags: List<Tag>) {
         private const val stageDurationFailName = "stage_duration_fail"
         private const val testDurationName = "test_duration"
         private const val externalSysDurationName = "external_sys_duration"
+        private const val externalSysSubmitName = "external_sys_submit"
         private const val testDurationFailName = "test_duration_fail"
         private const val paymentsAmountName = "payments_amount"
         private const val paymentFinishedName = "payment_finished"
@@ -83,6 +84,15 @@ class Metrics(private val tags: List<Tag>) {
                 .tags(tags)
                 .register(globalRegistry)
                 .record(timeMs, TimeUnit.MILLISECONDS)
+        }
+    }
+
+    fun externalSysRequestSubmitted() {
+        executor.submit {
+            Counter.builder(externalSysSubmitName)
+                .tags(tags)
+                .register(globalRegistry)
+                .increment()
         }
     }
 

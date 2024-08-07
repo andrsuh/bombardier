@@ -7,7 +7,11 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['bombardier:1234']
-  - job_name: 'spring-external'
+  - job_name: 'bombardier-job'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['host.docker.internal:1234']
+  - job_name: 'online-shop-job'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8081']
