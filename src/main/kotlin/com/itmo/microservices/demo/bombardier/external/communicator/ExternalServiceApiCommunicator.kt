@@ -17,6 +17,7 @@ import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
 import java.net.URI
 import java.net.http.HttpClient
+import java.net.http.HttpClient.Version.HTTP_2
 import java.net.http.HttpRequest
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse
@@ -32,7 +33,6 @@ data class TrimmedResponse(
     private val code: Int,
     private val req: HttpRequest
 ) {
-
     fun body() = body
     fun code() = code
     fun request() = req
@@ -268,7 +268,7 @@ class HttpClientsManager {
             logger.info("Creating new http client for test $testIdentifier")
             HttpClient.newBuilder()
                 .executor(executors[hash])
-                .version(HttpClient.Version.HTTP_2)
+                .version(HTTP_2)
                 .build()
         }
 

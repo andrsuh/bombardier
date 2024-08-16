@@ -106,6 +106,17 @@ class ExternalSystemController(
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
+            val testAcc = "test-account"
+            accounts["${service.name}-$testAcc"] = Account(
+                service.name,
+                testAcc,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 2),
+                rateLimiter = makeRateLimiter(testAcc, 100_000, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(1_000_000),
+                price = 0
+            )
+
             // default 1
             val basePrice = 100
             val accName1 = "default-1"
