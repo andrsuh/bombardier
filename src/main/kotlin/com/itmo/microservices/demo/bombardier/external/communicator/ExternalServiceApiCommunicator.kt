@@ -24,6 +24,7 @@ import java.net.http.HttpResponse
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import javax.net.ssl.SSLContext
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
@@ -269,6 +270,7 @@ class HttpClientsManager {
             HttpClient.newBuilder()
                 .executor(executors[hash])
                 .version(HTTP_2)
+                .sslContext(SSLContext.getDefault())
                 .build()
         }
 
