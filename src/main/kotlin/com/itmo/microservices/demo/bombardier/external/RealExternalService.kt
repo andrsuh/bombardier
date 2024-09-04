@@ -37,7 +37,8 @@ class RealExternalService(
             "/users",
         ) {
             this.POST(BodyPublishers.ofString(
-                mapper.writeValueAsString(mapOf("name" to name, "password" to "pwd_$name"))
+//                mapper.writeValueAsString(mapOf("name" to name, "password" to "pwd_$name"))
+            "{\"name\": \"${name}\", \"password\": \"pwd_$name\"}"
             ))
             header(HttpHeaders.CONTENT_TYPE, "application/json")
         }

@@ -15,12 +15,20 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import java.io.IOException
+import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpClient.Version.HTTP_2
 import java.net.http.HttpRequest
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse
+import java.nio.ByteBuffer
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
+import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -45,7 +53,7 @@ open class ExternalServiceApiCommunicator(
     private val httpClientsManager: HttpClientsManager = HttpClientsManager()
 ) {
     companion object {
-        private val JSON = MediaType.parse("application/json; charset=utf-8")
+        private val JSON = "application/json; charset=utf-8".toMediaTypeOrNull()
     }
 
     val logger = LoggerWrapper(
@@ -209,9 +217,9 @@ open class ExternalServiceApiCommunicator(
         @Deprecated("Not allowed to use")
         override fun url(url: String) = throw IllegalStateException("Not allowed to call this function")
 
-        fun jsonPost(vararg items: Pair<String, String>) {
-            post(RequestBody.create(JSON, mapper.writeValueAsString(items.toMap())));
-        }
+//        fun jsonPost(vararg items: Pair<String, String>) {
+//            post(RequestBody.create(JSON, mapper.writeValueAsString(items.toMap())));
+//        }
 
         fun post() {
             post(emptyBody)
@@ -235,7 +243,7 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(10)
         private val READ_TIMEOUT = Duration.ofSeconds(10)
         private val WRITE_TIMEOUT = Duration.ofSeconds(10)
-        private const val NUMBER_OF_CLIENTS = 16
+        private const val NUMBER_OF_CLIENTS = 1
         private const val NUMBER_OF_THREADS_PER_EXECUTOR = 128
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
@@ -270,7 +278,7 @@ class HttpClientsManager {
             HttpClient.newBuilder()
                 .executor(executors[hash])
                 .version(HTTP_2)
-                .sslContext(SSLContext.getDefault())
+//                .sslContext(SSLContext.getDefault())
                 .build()
         }
 
@@ -329,5 +337,105 @@ class HttpClientsManager {
 
     }
 
+
+
+    class Reactor : Runnable {
+        private val selector = Selector.open()
+        private val socket = ServerSocketChannel.open().also {
+            it.bind(InetSocketAddress(5555))
+            it.configureBlocking(false)
+        }
+
+        init {
+            socket.register(selector, SelectionKey.OP_ACCEPT).attach(Acceptor())
+        }
+
+        override fun run() {
+            try {
+                while (!Thread.interrupted()) {
+                    selector.select()
+                    val selected = selector.selectedKeys()
+
+                    selected.forEach {
+                        dispatch(it)
+                    }
+
+                    selected.clear()
+                }
+            } catch (_: IOException) {
+            }
+        }
+
+        private fun dispatch(k: SelectionKey) {
+            (k.attachment() as Runnable?)?.run()
+        }
+
+        inner class Acceptor {
+            fun run() {
+                try {
+                    this@Reactor.socket.accept()?.let {
+                        Handler(selector, it)
+                    }
+                } catch (_: IOException) { }
+            }
+        }
+    }
+
+
+
+    class Handler(
+        val sel: Selector,
+        val socket: SocketChannel
+    ) {
+
+        var input: ByteBuffer = ByteBuffer.allocate(2048)
+        var output: ByteBuffer = ByteBuffer.allocate(2048)
+
+        val READING: Int = 0
+        val SENDING: Int = 1
+        var state: Int = READING
+
+        init {
+            socket.configureBlocking(false)
+        }
+
+        val sk = socket.register(sel, 0).also {
+            it.attach(this)
+            it.interestOps(SelectionKey.OP_READ)
+            sel.wakeup()
+        }
+
+        fun run() {
+            try {
+                if (state == READING) read()
+                else if (state == SENDING) send()
+            } catch (ex: IOException) { }
+        }
+
+        fun read() {
+            socket.read(input)
+            if (inputIsComplete()) {
+                process()
+            }
+            state = SENDING
+            sk.interestOps(SelectionKey.OP_WRITE)
+        }
+
+        fun send() {
+            socket.write(output)
+            if (outputIsComplete()) sk.cancel()
+        }
+
+        fun inputIsComplete(): Boolean {
+            return false
+        }
+
+        fun outputIsComplete(): Boolean {
+            return false
+        }
+
+        fun process() {
+        }
+    }
 
 }

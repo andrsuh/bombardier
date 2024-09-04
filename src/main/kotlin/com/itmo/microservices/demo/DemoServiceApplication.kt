@@ -2,10 +2,11 @@ package com.itmo.microservices.demo
 
 import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
 import com.itmo.microservices.demo.common.SuspendableAwaiter
-import org.apache.coyote.http2.Http2Protocol
+import org.eclipse.jetty.http2.server.HTTP2CServerConnectionFactory
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
-import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer
+import org.springframework.boot.web.embedded.jetty.JettyServerCustomizer
+import org.springframework.boot.web.embedded.jetty.JettyServletWebServerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.util.*
@@ -15,11 +16,23 @@ import java.util.*
 @Configuration
 class DemoServiceApplication {
 
+//    @Bean
+//    fun tomcatConnectorCustomizer(): TomcatConnectorCustomizer {
+//        return TomcatConnectorCustomizer {
+//            (it.protocolHandler.findUpgradeProtocols().get(0) as Http2Protocol).maxConcurrentStreams = 10_000_000
+//        }
+//    }
+
     @Bean
-    fun tomcatConnectorCustomizer(): TomcatConnectorCustomizer {
-        return TomcatConnectorCustomizer {
-            (it.protocolHandler.findUpgradeProtocols().get(0) as Http2Protocol).maxConcurrentStreams = 10_000_000
+    fun jettyServerCustomizer(): JettyServletWebServerFactory {
+        val jettyServletWebServerFactory = JettyServletWebServerFactory()
+
+        val c = JettyServerCustomizer {
+            (it.connectors[0].getConnectionFactory("h2c") as HTTP2CServerConnectionFactory).maxConcurrentStreams = 100_000
         }
+
+        jettyServletWebServerFactory.serverCustomizers.add(c)
+        return jettyServletWebServerFactory
     }
     @Bean
     fun merger(): SuspendableAwaiter<UUID, Boolean, PaymentLogRecord> {

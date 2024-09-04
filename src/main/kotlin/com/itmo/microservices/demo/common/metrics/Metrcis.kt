@@ -43,7 +43,7 @@ class Metrics(private val tags: List<Tag>) {
             ExecutorServiceMetrics.monitor(globalRegistry, executorService, executorName, listOf())
         }
 
-        private val executor = Executors.newFixedThreadPool(16, NamedThreadFactory("metrics-dispatcher")).also {
+        private val executor = Executors.newFixedThreadPool(64, NamedThreadFactory("metrics-dispatcher")).also {
             executorServiceMonitoring(it, "metrics-dispatcher")
         }
     }

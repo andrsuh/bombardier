@@ -16,7 +16,7 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
     ) {
 
     companion object {
-        val mappingScope = CoroutineScope(Executors.newFixedThreadPool(32, NamedThreadFactory("mappingScope")).also {
+        val mappingScope = CoroutineScope(Executors.newFixedThreadPool(128, NamedThreadFactory("mappingScope")).also {
             Metrics.executorServiceMonitoring(it, "mappingScope")
         }.asCoroutineDispatcher())
     }
