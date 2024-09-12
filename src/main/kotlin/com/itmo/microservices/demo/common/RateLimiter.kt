@@ -12,28 +12,42 @@ import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class RateLimiter(
     private val rate: Int,
-    private val timeUnit: TimeUnit = TimeUnit.MINUTES
+    private val timeUnit: TimeUnit = TimeUnit.MINUTES,
+    private val slowStartOn: Boolean = true,
 ) {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(RateLimiter::class.java)
+        private val counter = AtomicInteger(0)
         private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     }
 
-    private val semaphore = Semaphore(rate)
+    @Volatile
+    private var effectiveRate = if (slowStartOn) 1 else rate
+
+    @Volatile
+    private var semaphore = Semaphore(effectiveRate)
+    private val semaphoreNumber = counter.getAndIncrement()
 
     private val releaseJob = rateLimiterScope.launch {
         while (true) {
             val start = System.currentTimeMillis()
-            val permitsToRelease = rate - semaphore.availablePermits
+            val permitsToRelease = effectiveRate - semaphore.availablePermits
             repeat(permitsToRelease) {
                 runCatching {
                     semaphore.release()
                 }.onFailure { th -> logger.error("Failed while releasing permits", th) }
             }
-            logger.debug("Released $permitsToRelease permits")
+            logger.warn("Semaphore ${semaphoreNumber}. Released $permitsToRelease permits")
+
+            if (slowStartOn && effectiveRate < rate) {
+                effectiveRate = minOf(rate, effectiveRate + 100)
+                semaphore = Semaphore(effectiveRate)
+            }
+
             delay(timeUnit.toMillis(1) - (System.currentTimeMillis() - start))
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }

@@ -28,7 +28,7 @@ class DemoServiceApplication {
         val jettyServletWebServerFactory = JettyServletWebServerFactory()
 
         val c = JettyServerCustomizer {
-            (it.connectors[0].getConnectionFactory("h2c") as HTTP2CServerConnectionFactory).maxConcurrentStreams = 100_000
+            (it.connectors[0].getConnectionFactory("h2c") as HTTP2CServerConnectionFactory).maxConcurrentStreams = 1_000_000
         }
 
         jettyServletWebServerFactory.serverCustomizers.add(c)
