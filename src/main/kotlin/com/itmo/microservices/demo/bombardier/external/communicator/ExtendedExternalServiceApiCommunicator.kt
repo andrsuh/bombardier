@@ -37,13 +37,13 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
         noinline builderContext: HttpRequest.Builder.() -> Unit
     ): T {
         val res = execute(method, url, builderContext)
-        return try {
-            mappingScope.async<T> {
-                readValueBombardier(res.body())
-            }.await()
-        } catch (t: BombardierMappingException) {
-            throw t.exceptionWithUrl("${res.request().method()} ${res.request().uri()}")
-        }
+//        return try {
+//            mappingScope.async<T> {
+                return readValueBombardier(res.body())
+//            }.await()
+//        } catch (t: BombardierMappingException) {
+//            throw t.exceptionWithUrl("${res.request().method()} ${res.request().uri()}")
+//        }
     }
 
     suspend inline fun <reified T> executeWithAuthAndDeserialize(
@@ -53,12 +53,12 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
         noinline builderContext: HttpRequest.Builder.() -> Unit
     ): T {
         val res = executeWithAuth(method, url, credentials, builderContext)
-        return try {
-            mappingScope.async<T> {
-                readValueBombardier(res.body())
-            }.await()
-        } catch (t: BombardierMappingException) {
-            throw t.exceptionWithUrl("${res.request().method()} ${res.request().uri()}")
-        }
+//        return try {
+//            mappingScope.async<T> {
+                return readValueBombardier(res.body())
+//            }.await()
+//        } catch (t: BombardierMappingException) {
+//            throw t.exceptionWithUrl("${res.request().method()} ${res.request().uri()}")
+//        }
     }
 }

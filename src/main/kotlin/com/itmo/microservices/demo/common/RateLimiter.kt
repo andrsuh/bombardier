@@ -44,7 +44,7 @@ class RateLimiter(
             logger.warn("Semaphore ${semaphoreNumber}. Released $permitsToRelease permits")
 
             if (slowStartOn && effectiveRate < rate) {
-                effectiveRate = minOf(rate, effectiveRate + 100)
+                effectiveRate = minOf(rate, effectiveRate + 300)
                 semaphore = Semaphore(effectiveRate)
             }
 

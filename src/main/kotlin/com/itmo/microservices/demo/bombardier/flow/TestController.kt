@@ -34,12 +34,12 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    private val executor: ExecutorService = Executors.newFixedThreadPool(1024, NamedThreadFactory("test-controller-executor")).also {
+    private val executor: ExecutorService = Executors.newFixedThreadPool(32, NamedThreadFactory("test-controller-executor")).also {
         Metrics.executorServiceMonitoring(it, "test-controller-executor")
     }
 
-    private val testInvokationScope = CoroutineScope(executor.asCoroutineDispatcher())
-    private val testLaunchScope = CoroutineScope(Dispatchers.Default)
+//    private val testInvokationScope = CoroutineScope(executor.asCoroutineDispatcher())
+    private val testLaunchScope = CoroutineScope(executor.asCoroutineDispatcher())
 
 //    private val testStages = listOf<TestStage>(
 //        choosingUserAccountStage.asErrorFree().asMetricRecordable(),
@@ -126,23 +126,33 @@ class TestController(
             }
         }
 
-        testLaunchScope.launch {
-            while (true) {
-                val testNum = testingFlow.testsStarted.getAndIncrement()
-                if (testNum > params.numberOfTests) {
-                    logger.error("Wrapping up test flow. Number of tests exceeded")
-                    runningTests.remove(serviceName)
-                    return@launch
-                }
+        for (i in 1..100) {
+            testLaunchScope.launch(
+                TestContext(
+                    serviceName = serviceName,
+                    launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+                    totalTestsNumber = testingFlow.testParams.numberOfTests,
+                    testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+                    stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
+                )
+            ) {
+                while (true) {
+                    val testNum = testingFlow.testsStarted.getAndIncrement()
+                    if (testNum > params.numberOfTests) {
+                        logger.error("Wrapping up test flow. Number of tests exceeded")
+                        runningTests.remove(serviceName)
+                        return@launch
+                    }
 
-                rateLimiter.tickBlocking()
-                logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                launchNewTestFlow(serviceName, testingFlow, descriptor, stuff, testStages)
+                    rateLimiter.tickBlocking()
+                    logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+                    launchNewTestFlow(serviceName, testingFlow, descriptor, stuff, testStages)
+                }
             }
         }
     }
 
-    private fun launchNewTestFlow(
+    private suspend fun launchNewTestFlow(
         serviceName: String,
         testingFlow: TestingFlow,
         descriptor: ServiceDescriptor,
@@ -152,22 +162,22 @@ class TestController(
         val logger = LoggerWrapper(log, descriptor.name)
 
         val testStartTime = System.currentTimeMillis()
-        testInvokationScope.launch(
-            testingFlow.testFlowCoroutine + TestContext(
-                serviceName = serviceName,
-                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
-                totalTestsNumber = testingFlow.testParams.numberOfTests,
-                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
-            )
-        ) {
+//        testInvokationScope.launch(
+//            testingFlow.testFlowCoroutine + TestContext(
+//                serviceName = serviceName,
+//                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+//                totalTestsNumber = testingFlow.testParams.numberOfTests,
+//                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+//                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
+//            )
+//        ) {
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
                 if (stageResult != CONTINUE) {
                         Metrics
                             .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to stageResult.name)
                             .testDurationRecord(System.currentTimeMillis() - testStartTime)
-                        return@launch
+                        return
                 }
             }
 
@@ -175,17 +185,17 @@ class TestController(
                 .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "SUCCESS")
                 .testDurationRecord(System.currentTimeMillis() - testStartTime)
 
-        }.invokeOnCompletion { th ->
-            if (th != null) {
-                logger.error("Unexpected fail in test", th)
-
-                Metrics
-                    .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "UNEXPECTED_FAIL")
-                    .testDurationRecord(System.currentTimeMillis() - testStartTime)
-            }
-
-            logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
-        }
+//        }.invokeOnCompletion { th ->
+//            if (th != null) {
+//                logger.error("Unexpected fail in test", th)
+//
+//                Metrics
+//                    .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "UNEXPECTED_FAIL")
+//                    .testDurationRecord(System.currentTimeMillis() - testStartTime)
+//            }
+//
+//            logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
+//        }
     }
 }
 
