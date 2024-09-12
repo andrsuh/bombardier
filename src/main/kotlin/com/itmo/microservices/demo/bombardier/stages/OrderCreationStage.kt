@@ -27,6 +27,7 @@ class OrderCreationStage : TestStage {
         val order = externalServiceApi.createOrder(testCtx().userId!!, price)
         eventLogger.info(I_ORDER_CREATED, order.id)
         testCtx().orderId = order.id
+
         return TestStage.TestContinuationType.CONTINUE
     }
 }

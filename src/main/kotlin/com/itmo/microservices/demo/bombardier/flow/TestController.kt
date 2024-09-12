@@ -24,14 +24,9 @@ import kotlin.coroutines.CoroutineContext
 @Service
 class TestController(
     private val knownServices: KnownServices,
-    choosingUserAccountStage: ChoosingUserAccountStage,
-    orderCreationStage: OrderCreationStage,
-    orderCollectingStage: OrderCollectingStage,
-    orderFinalizingStage: OrderFinalizingStage,
-    orderSettingDeliverySlotsStage: OrderSettingDeliverySlotsStage,
-    orderChangeItemsAfterFinalizationStage: OrderChangeItemsAfterFinalizationStage,
-    orderPaymentStage: OrderPaymentStage,
-    orderDeliveryStage: OrderDeliveryStage
+    val choosingUserAccountStage: ChoosingUserAccountStage,
+    val orderCreationStage: OrderCreationStage,
+    val orderPaymentStage: OrderPaymentStage,
 ) {
     companion object {
         val log = LoggerFactory.getLogger(TestController::class.java)
@@ -46,9 +41,9 @@ class TestController(
     private val testInvokationScope = CoroutineScope(executor.asCoroutineDispatcher())
     private val testLaunchScope = CoroutineScope(Dispatchers.Default)
 
-    private val testStages = listOf<TestStage>(
-        choosingUserAccountStage.asErrorFree().asMetricRecordable(),
-        orderCreationStage.asErrorFree().asMetricRecordable(),
+//    private val testStages = listOf<TestStage>(
+//        choosingUserAccountStage.asErrorFree().asMetricRecordable(),
+//        orderCreationStage.asErrorFree().asMetricRecordable(),
 //        orderCollectingStage.asErrorFree().asMetricRecordable(),
 //        OrderAbandonedStage(serviceApi).asErrorFree(),
 //        orderFinalizingStage.asErrorFree().asMetricRecordable(),
@@ -56,9 +51,16 @@ class TestController(
 //        orderChangeItemsAfterFinalizationStage.asErrorFree(),
 //        orderFinalizingStage.asErrorFree(),
 //        orderSettingDeliverySlotsStage.asErrorFree(),
-        orderPaymentStage.asErrorFree().asMetricRecordable(),
+//        orderPaymentStage.asErrorFree().asMetricRecordable(),
 //        orderDeliveryStage.asErrorFree()
-    )
+//    )
+
+//    private val testStage = mutableListOf<TestStage>().let {
+//        it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
+//        it.add(orderCreationStage.asErrorFree().asMetricRecordable())
+//        orderPaymentStage.asErrorFree().asMetricRecordable()
+//    }
+
 
     fun startTestingForService(params: TestParameters) {
         val logger = LoggerWrapper(log, params.serviceName)
@@ -140,13 +142,22 @@ class TestController(
     ) {
         val logger = LoggerWrapper(log, descriptor.name)
 
+        val testStages = mutableListOf<TestStage>().also {
+            it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
+            it.add(orderCreationStage.asErrorFree().asMetricRecordable())
+            if (!testingFlow.testParams.stopAfterOrderCreation) {
+                it.add(orderPaymentStage.asErrorFree().asMetricRecordable())
+            }
+        }
+
         val testStartTime = System.currentTimeMillis()
         testInvokationScope.launch(
             testingFlow.testFlowCoroutine + TestContext(
                 serviceName = serviceName,
                 launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
                 totalTestsNumber = testingFlow.testParams.numberOfTests,
-                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact
+                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
             )
         ) {
             testStages.forEach { stage ->
@@ -190,6 +201,7 @@ data class TestContext(
     var launchTestsRatePerSec: Int,
     var totalTestsNumber: Int,
     val testSuccessByThePaymentFact: Boolean = false,
+    val stopAfterOrderCreation: Boolean = false,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
@@ -214,4 +226,5 @@ data class TestParameters(
     val numberOfTests: Int = 100,
     val ratePerSecond: Int = 10,
     val testSuccessByThePaymentFact: Boolean = false,
+    val stopAfterOrderCreation: Boolean = false,
 )
