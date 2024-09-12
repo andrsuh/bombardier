@@ -126,18 +126,20 @@ class TestController(
             }
         }
 
-        testLaunchScope.launch {
-            while (true) {
-                val testNum = testingFlow.testsStarted.getAndIncrement()
-                if (testNum > params.numberOfTests) {
-                    logger.info("Wrapping up test flow. Number of tests exceeded")
-                    runningTests.remove(serviceName)
-                    return@launch
-                }
+        for (i in 0..8) {
+            testLaunchScope.launch {
+                while (true) {
+                    val testNum = testingFlow.testsStarted.getAndIncrement()
+                    if (testNum > params.numberOfTests) {
+                        logger.info("Wrapping up test flow. Number of tests exceeded")
+                        runningTests.remove(serviceName)
+                        return@launch
+                    }
 
-                rateLimiter.tickBlocking()
-                logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                launchNewTestFlow(serviceName, testingFlow, descriptor, stuff, testStages)
+                    rateLimiter.tickBlocking()
+                    logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+                    launchNewTestFlow(serviceName, testingFlow, descriptor, stuff, testStages)
+                }
             }
         }
     }
