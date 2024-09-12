@@ -118,6 +118,14 @@ class TestController(
         val params = testingFlow.testParams
         val rateLimiter = RateLimiter(params.ratePerSecond, TimeUnit.SECONDS)
 
+        val testStages = mutableListOf<TestStage>().also {
+            it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
+            it.add(orderCreationStage.asErrorFree().asMetricRecordable())
+            if (!testingFlow.testParams.stopAfterOrderCreation) {
+                it.add(orderPaymentStage.asErrorFree().asMetricRecordable())
+            }
+        }
+
         testLaunchScope.launch {
             while (true) {
                 val testNum = testingFlow.testsStarted.getAndIncrement()
@@ -129,7 +137,7 @@ class TestController(
 
                 rateLimiter.tickBlocking()
                 logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                launchNewTestFlow(serviceName, testingFlow, descriptor, stuff)
+                launchNewTestFlow(serviceName, testingFlow, descriptor, stuff, testStages)
             }
         }
     }
@@ -138,17 +146,10 @@ class TestController(
         serviceName: String,
         testingFlow: TestingFlow,
         descriptor: ServiceDescriptor,
-        stuff: ServiceWithApiAndAdditional
+        stuff: ServiceWithApiAndAdditional,
+        testStages: MutableList<TestStage>
     ) {
         val logger = LoggerWrapper(log, descriptor.name)
-
-        val testStages = mutableListOf<TestStage>().also {
-            it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
-            it.add(orderCreationStage.asErrorFree().asMetricRecordable())
-            if (!testingFlow.testParams.stopAfterOrderCreation) {
-                it.add(orderPaymentStage.asErrorFree().asMetricRecordable())
-            }
-        }
 
         val testStartTime = System.currentTimeMillis()
         testInvokationScope.launch(
