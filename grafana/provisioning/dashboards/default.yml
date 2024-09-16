@@ -6,4 +6,4 @@ providers:
     type: file
     options:
       path:
-        /etc/grafana/provisioning/dashboards/ServicesStatictic.json
+        /etc/grafana/provisioning/dashboards/ServicesStatistic.json

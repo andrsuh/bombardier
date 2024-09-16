@@ -44,7 +44,7 @@ class RateLimiter(
             logger.warn("Semaphore ${semaphoreNumber}. Released $permitsToRelease permits")
 
             if (slowStartOn && effectiveRate < rate) {
-                effectiveRate = minOf(rate, effectiveRate + 300)
+                effectiveRate = minOf(rate, effectiveRate * 2)
                 semaphore = Semaphore(effectiveRate)
             }
 
@@ -54,7 +54,12 @@ class RateLimiter(
 
     fun tick() = semaphore.tryAcquire()
 
-    suspend fun tickBlocking() = semaphore.acquire()
+    suspend fun tickBlocking() {
+        while (true) {
+            if (semaphore.tryAcquire()) break
+            delay(2)
+        }
+    }
 }
 
 class CountingRateLimiter(

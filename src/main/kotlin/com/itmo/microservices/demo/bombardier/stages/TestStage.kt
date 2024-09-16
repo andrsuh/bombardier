@@ -6,6 +6,7 @@ import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.UserNotableEvents
 import com.itmo.microservices.demo.common.logging.testServiceFiledName
 import com.itmo.microservices.demo.common.metrics.Metrics
+import com.itmo.microservices.demo.common.metrics.PromMetrics
 import net.logstash.logback.marker.Markers.append
 import kotlin.coroutines.coroutineContext
 
@@ -68,6 +69,7 @@ interface TestStage {
     }
 
     class MetricRecordTestStage(override val wrapped: TestStage) : TestStage, DecoratingStage {
+
         override suspend fun run(
             userManagement: UserManagement,
             externalServiceApi: ExternalServiceApi
@@ -76,8 +78,10 @@ interface TestStage {
             val state = wrapped.run(userManagement, externalServiceApi)
             val endTime = System.currentTimeMillis()
 
-            Metrics.withTags(Metrics.stageLabel to wrapped.name(), Metrics.serviceLabel to testCtx().serviceName)
-                .stageDurationRecord(endTime - startTime, state)
+//            Metrics.withTags(Metrics.stageLabel to wrapped.name(), Metrics.serviceLabel to testCtx().serviceName)
+//                .stageDurationRecord(endTime - startTime, state)
+
+            PromMetrics.stageDurationRecord(wrapped.name(), testCtx().serviceName, endTime - startTime, state, state.iSFailState())
             return state
         }
 

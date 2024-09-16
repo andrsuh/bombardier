@@ -7,6 +7,7 @@ import com.itmo.microservices.demo.common.SemaphoreOngoingWindow
 import com.itmo.microservices.demo.common.SuspendableAwaiter
 import com.itmo.microservices.demo.common.makeRateLimiter
 import com.itmo.microservices.demo.common.metrics.Metrics
+import com.itmo.microservices.demo.common.metrics.PromMetrics
 import io.github.resilience4j.ratelimiter.RateLimiter
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
@@ -303,9 +304,7 @@ class ExternalSystemController(
         logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
 
         if (!account.rateLimiter.acquirePermission()) {
-            Metrics
-                .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "RL_BREACHED")
-                .externalSysDurationRecord(System.currentTimeMillis() - start)
+            PromMetrics.externalSysDurationRecord(serviceName, accountName, "RL_BREACHED", System.currentTimeMillis() - start)
 
             return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
         }
@@ -337,21 +336,13 @@ class ExternalSystemController(
                     }
                 }
 
-                Metrics
-                    .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "SUCCESS")
-                    .externalSysDurationRecord(System.currentTimeMillis() - start)
+                PromMetrics.externalSysDurationRecord(serviceName, accountName, "SUCCESS", System.currentTimeMillis() - start)
 
                 return ResponseEntity.ok(Response(result)).also {
                     account.window.release()
                 }
             } else {
-                Metrics
-                    .withTags(
-                        Metrics.serviceLabel to serviceName,
-                        "accountName" to accountName,
-                        "outcome" to "WIN_BREACHED"
-                    )
-                    .externalSysDurationRecord(System.currentTimeMillis() - start)
+                PromMetrics.externalSysDurationRecord(serviceName, accountName, "WIN_BREACHED", System.currentTimeMillis() - start)
 
                 return ResponseEntity.status(500).body(
                     Response(
@@ -362,9 +353,7 @@ class ExternalSystemController(
             }
         } catch (e: Exception) {
             account.window.release()
-            Metrics
-                .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName, "outcome" to "UNEXPECTED_ERROR")
-                .externalSysDurationRecord(System.currentTimeMillis() - start)
+            PromMetrics.externalSysDurationRecord(serviceName, accountName, "UNEXPECTED_ERROR", System.currentTimeMillis() - start)
             throw e
         }
     }

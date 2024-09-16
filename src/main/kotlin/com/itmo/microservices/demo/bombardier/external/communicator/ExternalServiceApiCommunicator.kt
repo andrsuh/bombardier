@@ -14,6 +14,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.itmo.microservices.demo.common.metrics.Metrics
+import com.itmo.microservices.demo.common.metrics.PromMetrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import java.io.IOException
@@ -117,35 +118,28 @@ open class ExternalServiceApiCommunicator(
 //                logger.info("sending request to ${req.method()} ${req.url().url()}")
 //            }
 
-            Metrics.withTags(
-                    "service" to serviceName,
-                    "method" to externalApiMethod
-                )
-                .timeHttpRequestLatent(System.currentTimeMillis() - submissionTime)
+            PromMetrics.timeHttpRequestLatent(serviceName, externalApiMethod, System.currentTimeMillis() - submissionTime)
 
             httpClientsManager.getClient(externalApiMethod).sendAsync(req, HttpResponse.BodyHandlers.ofString())
                 .thenApply { resp ->
                     if (HttpStatus.Series.resolve(resp.statusCode()) == HttpStatus.Series.SUCCESSFUL) {
-                        Metrics
-                            .withTags(
-                                "service" to serviceName,
-                                "method" to externalApiMethod,
-                                "result" to "OK"
-                            )
-                            .externalMethodDurationRecord(System.currentTimeMillis() - submissionTime)
+                        PromMetrics.externalMethodDurationRecord(
+                            serviceName,
+                            externalApiMethod,
+                            "OK",
+                            System.currentTimeMillis() - submissionTime
+                        )
                         try {
                             it.resume(TrimmedResponse(resp.body(), resp.statusCode(), req))
                         } catch (t: Throwable) {
                             it.resumeWithException(t)
                         }
                     } else {
-                        Metrics
-                            .withTags(
-                                "service" to serviceName,
-                                "method" to externalApiMethod,
-                                "result" to "CODE-${resp.statusCode()}"
-                            )
-                            .externalMethodDurationRecord(System.currentTimeMillis() - submissionTime)
+                        PromMetrics.externalMethodDurationRecord(
+                            serviceName,
+                            externalApiMethod, "CODE-${resp.statusCode()}", System.currentTimeMillis() - submissionTime
+                        )
+
                         it.resumeWithException(
                             InvalidExternalServiceResponseException(
                                 resp.statusCode(),
@@ -157,13 +151,10 @@ open class ExternalServiceApiCommunicator(
                     }
                 }
                 .exceptionally { th ->
-                    Metrics
-                        .withTags(
-                            "service" to serviceName,
-                            "method" to externalApiMethod,
-                            "result" to "FAILED"
-                        )
-                        .externalMethodDurationRecord(System.currentTimeMillis() - submissionTime)
+                    PromMetrics.externalMethodDurationRecord(
+                        serviceName,
+                        externalApiMethod, "FAILED", System.currentTimeMillis() - submissionTime
+                    )
                     it.resumeWithException(th)
                 }
 

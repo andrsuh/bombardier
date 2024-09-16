@@ -9,6 +9,7 @@ import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationT
 import com.itmo.microservices.demo.common.RateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
+import com.itmo.microservices.demo.common.metrics.PromMetrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
@@ -34,7 +35,7 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    private val executor: ExecutorService = Executors.newFixedThreadPool(32, NamedThreadFactory("test-controller-executor")).also {
+    private val executor: ExecutorService = Executors.newFixedThreadPool(64, NamedThreadFactory("test-controller-executor")).also {
         Metrics.executorServiceMonitoring(it, "test-controller-executor")
     }
 
@@ -126,7 +127,7 @@ class TestController(
             }
         }
 
-        for (i in 1..100) {
+        for (i in 1..1000) {
             testLaunchScope.launch(
                 TestContext(
                     serviceName = serviceName,
@@ -171,20 +172,25 @@ class TestController(
 //                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
 //            )
 //        ) {
+        try {
             testStages.forEach { stage ->
                 val stageResult = stage.run(stuff.userManagement, stuff.api)
                 if (stageResult != CONTINUE) {
-                        Metrics
-                            .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to stageResult.name)
-                            .testDurationRecord(System.currentTimeMillis() - testStartTime)
-                        return
+                    PromMetrics.testDurationRecord(
+                        serviceName,
+                        stageResult.name,
+                        System.currentTimeMillis() - testStartTime
+                    )
+                    return
                 }
             }
 
-            Metrics
-                .withTags(Metrics.serviceLabel to serviceName, "testOutcome" to "SUCCESS")
-                .testDurationRecord(System.currentTimeMillis() - testStartTime)
-
+            PromMetrics.testDurationRecord(serviceName, "SUCCESS", System.currentTimeMillis() - testStartTime)
+        } catch (th: Throwable) {
+            logger.error("Unexpected fail in test", th)
+            PromMetrics.testDurationRecord(serviceName, "UNEXPECTED_FAIL", System.currentTimeMillis() - testStartTime)
+            logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
+        }
 //        }.invokeOnCompletion { th ->
 //            if (th != null) {
 //                logger.error("Unexpected fail in test", th)

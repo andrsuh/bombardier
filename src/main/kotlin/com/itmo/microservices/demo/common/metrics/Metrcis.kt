@@ -1,29 +1,106 @@
 package com.itmo.microservices.demo.common.metrics
 
-import com.itmo.microservices.demo.bombardier.stages.TestStage
+import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Tag
 import io.micrometer.core.instrument.Timer
 import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
+import io.micrometer.prometheus.PrometheusMeterRegistry
+import io.prometheus.client.Summary
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 
+class PromMetrics {
+    companion object {
+        val promRegistry =
+            (io.micrometer.core.instrument.Metrics.globalRegistry.registries.first() as PrometheusMeterRegistry).prometheusRegistry
+        val stageLabel = "stage"
+        val serviceLabel = "service"
+
+        private val stageDuration = Summary.build()
+            .name("stage_duration_ok")
+            .help("Stage duration.")
+            .labelNames(stageLabel, serviceLabel, "result")
+            .quantile(0.5, 0.05)
+            .quantile(0.95, 0.05)
+            .register(promRegistry)
+
+
+        private val testDuration = Summary.build()
+            .name("test_duration")
+            .help("Test duration.")
+            .labelNames(serviceLabel, "test_duration")
+            .quantile(0.5, 0.05)
+            .quantile(0.95, 0.05)
+            .register(promRegistry)
+
+        private val externalSysDuration = Summary.build()
+            .name("external_sys_duration")
+            .help("External system duration.")
+            .labelNames(serviceLabel, "accountName", "outcome")
+            .quantile(0.5, 0.05)
+            .quantile(0.95, 0.05)
+            .register(promRegistry)
+
+        private val httpRequestLatent = Summary.build()
+            .name("http_request_latent")
+            .help("HTTP request latency.")
+            .labelNames(serviceLabel, "method")
+            .quantile(0.5, 0.05)
+            .quantile(0.95, 0.05)
+            .register(promRegistry)
+
+        private val httpExternalDuration = Summary.build()
+            .name("http_external_duration")
+            .help("HTTP external duration.")
+            .labelNames(serviceLabel, "method", "result")
+            .quantile(0.5, 0.05)
+            .quantile(0.95, 0.05)
+            .register(promRegistry)
+
+        fun testDurationRecord(serviceName: String, testOutcome: String, timeMs: Long) {
+            testDuration.labels(serviceName, testOutcome).observe(timeMs.toDouble())
+        }
+
+        fun stageDurationRecord(
+            stageName: String,
+            serviceName: String,
+            timeMs: Long,
+            state: TestContinuationType,
+            failed: Boolean
+        ) {
+            stageDuration.labels(stageName, serviceName, if (failed) "failed" else "success").observe(timeMs.toDouble())
+        }
+
+        fun externalSysDurationRecord(serviceName: String, accountName: String, outcome: String, timeMs: Long) {
+            externalSysDuration.labels(serviceName, accountName, outcome).observe(timeMs.toDouble())
+        }
+
+        fun timeHttpRequestLatent(serviceName: String, method: String, timeMs: Long) {
+            httpRequestLatent.labels(serviceName, method).observe(timeMs.toDouble())
+        }
+
+        fun externalMethodDurationRecord(serviceName: String, method: String, result: String, timeMs: Long) {
+            httpExternalDuration.labels(serviceName, method, result).observe(timeMs.toDouble())
+        }
+    }
+}
+
+
 class Metrics(private val tags: List<Tag>) {
-
-
     companion object {
 
         val globalRegistry = io.micrometer.core.instrument.Metrics.globalRegistry
 
-        private const val externalCallDurationName = "http_external_duration"
-        private const val timeHttpRequestLatent = "http_request_latent"
-        private const val stageDurationOkName = "stage_duration_ok"
-        private const val stageDurationFailName = "stage_duration_fail"
-        private const val testDurationName = "test_duration"
-        private const val externalSysDurationName = "external_sys_duration"
+//        private const val externalCallDurationName = "http_external_duration"
+//        private const val timeHttpRequestLatent = "http_request_latent"
+//        private const val stageDurationOkName = "stage_duration_ok"
+//        private const val stageDurationFailName = "stage_duration_fail"
+//        private const val testDurationName = "test_duration"
+//        private const val externalSysDurationName = "external_sys_duration"
         private const val externalSysSubmitName = "external_sys_submit"
         private const val testDurationFailName = "test_duration_fail"
         private const val paymentsAmountName = "payments_amount"
@@ -43,49 +120,49 @@ class Metrics(private val tags: List<Tag>) {
             ExecutorServiceMetrics.monitor(globalRegistry, executorService, executorName, listOf())
         }
 
-        private val executor = Executors.newFixedThreadPool(64, NamedThreadFactory("metrics-dispatcher")).also {
+        private val executor = Executors.newFixedThreadPool(16, NamedThreadFactory("metrics-dispatcher")).also {
             executorServiceMonitoring(it, "metrics-dispatcher")
         }
     }
 
-    fun stageDurationRecord(timeMs: Long, state: TestStage.TestContinuationType) {
-        executor.submit {
-            if (state.iSFailState()) {
-                Timer.builder(stageDurationFailName)
-                    .publishPercentiles(0.95)
-                    .tags(tags)
-                    .register(globalRegistry)
-                    .record(timeMs, TimeUnit.MILLISECONDS)
-            } else {
-                Timer.builder(stageDurationOkName)
-                    .publishPercentiles(0.5)
-                    .publishPercentiles(0.95)
-                    .tags(tags)
-                    .register(globalRegistry)
-                    .record(timeMs, TimeUnit.MILLISECONDS)
-            }
-        }
-    }
-
-    fun testDurationRecord(timeMs: Long) {
-        executor.submit {
-            Timer.builder(testDurationName)
-                .publishPercentiles(0.95)
-                .tags(tags)
-                .register(globalRegistry)
-                .record(timeMs, TimeUnit.MILLISECONDS)
-        }
-    }
-
-    fun externalSysDurationRecord(timeMs: Long) {
-        executor.submit {
-            Timer.builder(externalSysDurationName)
-                .publishPercentiles(0.95)
-                .tags(tags)
-                .register(globalRegistry)
-                .record(timeMs, TimeUnit.MILLISECONDS)
-        }
-    }
+//    fun stageDurationRecord(timeMs: Long, state: TestContinuationType) {
+    //        executor.submit {
+//            if (state.iSFailState()) {
+//                Timer.builder(stageDurationFailName)
+//                    .publishPercentiles(0.95)
+//                    .tags(tags)
+//                    .register(globalRegistry)
+//                    .record(timeMs, TimeUnit.MILLISECONDS)
+//            } else {
+//                Timer.builder(stageDurationOkName)
+//                    .publishPercentiles(0.5)
+//                    .publishPercentiles(0.95)
+//                    .tags(tags)
+//                    .register(globalRegistry)
+//                    .record(timeMs, TimeUnit.MILLISECONDS)
+//            }
+//        }
+//    }
+//
+//    fun testDurationRecord(timeMs: Long) {
+//        executor.submit {
+//            Timer.builder(testDurationName)
+//                .publishPercentiles(0.95)
+//                .tags(tags)
+//                .register(globalRegistry)
+//                .record(timeMs, TimeUnit.MILLISECONDS)
+//        }
+//    }
+//
+//    fun externalSysDurationRecord(timeMs: Long) {
+//        executor.submit {
+//            Timer.builder(externalSysDurationName)
+//                .publishPercentiles(0.95)
+//                .tags(tags)
+//                .register(globalRegistry)
+//                .record(timeMs, TimeUnit.MILLISECONDS)
+//        }
+//    }
 
     fun externalSysRequestSubmitted() {
         executor.submit {
@@ -123,21 +200,21 @@ class Metrics(private val tags: List<Tag>) {
         }
     }
 
-    fun externalMethodDurationRecord(timeMs: Long) {
-        executor.submit {
-            Timer.builder(externalCallDurationName)
-                .publishPercentiles(0.95)
-                .tags(tags)
-                .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
-        }
-    }
+//    fun externalMethodDurationRecord(timeMs: Long) {
+//        executor.submit {
+//            Timer.builder(externalCallDurationName)
+//                .publishPercentiles(0.95)
+//                .tags(tags)
+//                .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+//        }
+//    }
 
-    fun timeHttpRequestLatent(timeMs: Long) {
-        executor.submit {
-            Timer.builder(timeHttpRequestLatent)
-                .publishPercentiles(0.95)
-                .tags(tags)
-                .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
-        }
-    }
+//    fun timeHttpRequestLatent(timeMs: Long) {
+//        executor.submit {
+//            Timer.builder(timeHttpRequestLatent)
+//                .publishPercentiles(0.95)
+//                .tags(tags)
+//                .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
+//        }
+//    }
 }

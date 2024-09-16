@@ -16,9 +16,9 @@ open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor,
     ) {
 
     companion object {
-        val mappingScope = CoroutineScope(Executors.newFixedThreadPool(128, NamedThreadFactory("mappingScope")).also {
-            Metrics.executorServiceMonitoring(it, "mappingScope")
-        }.asCoroutineDispatcher())
+//        val mappingScope = CoroutineScope(Executors.newFixedThreadPool(128, NamedThreadFactory("mappingScope")).also {
+//            Metrics.executorServiceMonitoring(it, "mappingScope")
+//        }.asCoroutineDispatcher())
     }
 
     suspend inline fun <reified T> executeWithDeserialize(method: String, url: String) =
