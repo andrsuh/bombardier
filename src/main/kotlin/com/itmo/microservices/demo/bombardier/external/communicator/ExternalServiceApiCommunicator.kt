@@ -30,6 +30,7 @@ import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -103,7 +104,8 @@ open class ExternalServiceApiCommunicator(
             builderContext(this)
         }.build()
 
-        val testId = coroutineContext[TestCtxKey]?.testId?.toString()
+        val testId = coroutineContext[TestCtxKey]?.testId?.toString() ?: UUID.randomUUID().toString()
+        val testStartTime = coroutineContext[TestCtxKey]?.testStartTime ?: -1
 
         return suspendCoroutine {
             val submissionTime = System.currentTimeMillis()
@@ -118,9 +120,10 @@ open class ExternalServiceApiCommunicator(
 //                logger.info("sending request to ${req.method()} ${req.url().url()}")
 //            }
 
-            PromMetrics.timeHttpRequestLatent(serviceName, externalApiMethod, System.currentTimeMillis() - submissionTime)
+            PromMetrics.timeHttpRequestLatent(serviceName, externalApiMethod, System.currentTimeMillis() - testStartTime)
 
-            httpClientsManager.getClient(externalApiMethod).sendAsync(req, HttpResponse.BodyHandlers.ofString())
+//            httpClientsManager.getClient(externalApiMethod).sendAsync(req, HttpResponse.BodyHandlers.ofString())
+            httpClientsManager.getClient(testId).sendAsync(req, HttpResponse.BodyHandlers.ofString())
                 .thenApply { resp ->
                     if (HttpStatus.Series.resolve(resp.statusCode()) == HttpStatus.Series.SUCCESSFUL) {
                         PromMetrics.externalMethodDurationRecord(
@@ -234,8 +237,8 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(10)
         private val READ_TIMEOUT = Duration.ofSeconds(10)
         private val WRITE_TIMEOUT = Duration.ofSeconds(10)
-        private const val NUMBER_OF_CLIENTS = 1
-        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 32
+        private const val NUMBER_OF_CLIENTS = 3
+        private const val NUMBER_OF_THREADS_PER_EXECUTOR = 16
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
     }

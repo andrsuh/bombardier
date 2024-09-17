@@ -2,10 +2,7 @@ package com.itmo.microservices.demo.common
 
 import io.github.resilience4j.ratelimiter.RateLimiterConfig
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -56,10 +53,64 @@ class RateLimiter(
 
     suspend fun tickBlocking() {
         while (true) {
-            if (semaphore.tryAcquire()) break
-            delay(2)
+            try {
+                withTimeout(1000) {
+                    semaphore.acquire()
+                    return@withTimeout
+                }
+                break
+            } catch (ignored: TimeoutCancellationException) {}
+//            if (semaphore.tryAcquire()) break
+//            delay(50)
         }
     }
+}
+
+class SlowStartRateLimiter(
+    private val targetRate: Int,
+    private val timeUnit: TimeUnit = TimeUnit.MINUTES,
+    private val slowStartOn: Boolean = true,
+) {
+    companion object {
+        private val logger: Logger = LoggerFactory.getLogger(SlowStartRateLimiter::class.java)
+        private val counter = AtomicInteger(0)
+        private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
+    }
+
+    @Volatile
+    private var currentRate = if (slowStartOn) 1 else targetRate
+
+    private var semaphore = Semaphore(targetRate)
+    private val rateLimiterNum = counter.getAndIncrement()
+
+    private val releaseJob = rateLimiterScope.launch {
+        repeat(targetRate) {
+            runCatching {
+                semaphore.acquire()
+            }.onFailure { th -> logger.error("Failed while initially acquiring permits", th) }
+        }
+
+        while (true) {
+            val start = System.currentTimeMillis()
+            val permitsToRelease = currentRate - semaphore.availablePermits
+            repeat(permitsToRelease) {
+                runCatching {
+                    semaphore.release()
+                }.onFailure { th -> logger.error("Failed while releasing permits", th) }
+            }
+            logger.warn("Rate limiter ${rateLimiterNum}. Released $permitsToRelease permits")
+
+            if (slowStartOn && currentRate < targetRate) {
+                currentRate = minOf(targetRate, currentRate * 2)
+            }
+
+            delay(timeUnit.toMillis(1) - (System.currentTimeMillis() - start))
+        }
+    }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
+
+    fun tick() = semaphore.tryAcquire()
+
+    suspend fun tickBlocking() = semaphore.acquire()
 }
 
 class CountingRateLimiter(

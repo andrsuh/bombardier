@@ -7,6 +7,7 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWith
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
 import com.itmo.microservices.demo.common.RateLimiter
+import com.itmo.microservices.demo.common.SlowStartRateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
@@ -35,7 +36,7 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    private val executor: ExecutorService = Executors.newFixedThreadPool(64, NamedThreadFactory("test-controller-executor")).also {
+    private val executor: ExecutorService = Executors.newFixedThreadPool(16, NamedThreadFactory("test-controller-executor")).also {
         Metrics.executorServiceMonitoring(it, "test-controller-executor")
     }
 
@@ -117,7 +118,7 @@ class TestController(
         val testingFlow = runningTests[serviceName] ?: return
 
         val params = testingFlow.testParams
-        val rateLimiter = RateLimiter(params.ratePerSecond, TimeUnit.SECONDS, slowStartOn = true)
+        val rateLimiter = SlowStartRateLimiter(params.ratePerSecond, TimeUnit.SECONDS, slowStartOn = true)
 
         val testStages = mutableListOf<TestStage>().also {
             it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
@@ -127,7 +128,7 @@ class TestController(
             }
         }
 
-        for (i in 1..1000) {
+        for (i in 1..200) {
             testLaunchScope.launch(
                 TestContext(
                     serviceName = serviceName,
@@ -219,6 +220,7 @@ data class TestContext(
     var totalTestsNumber: Int,
     val testSuccessByThePaymentFact: Boolean = false,
     val stopAfterOrderCreation: Boolean = false,
+    val testStartTime: Long = System.currentTimeMillis()
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
