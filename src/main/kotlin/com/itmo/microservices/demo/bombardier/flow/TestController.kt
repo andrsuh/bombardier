@@ -128,7 +128,7 @@ class TestController(
             }
         }
 
-        for (i in 1..200) {
+        for (i in 1..100) {
             testLaunchScope.launch(
                 TestContext(
                     serviceName = serviceName,

@@ -80,16 +80,18 @@ class SlowStartRateLimiter(
     @Volatile
     private var currentRate = if (slowStartOn) 1 else targetRate
 
-    private var semaphore = Semaphore(targetRate)
+    private val semaphore = Semaphore(targetRate).also { semaphore ->
+        runBlocking {
+            repeat(targetRate) {
+                runCatching {
+                    semaphore.acquire()
+                }.onFailure { th -> logger.error("Failed while initially acquiring permits", th) }
+            }
+        }
+    }
     private val rateLimiterNum = counter.getAndIncrement()
 
     private val releaseJob = rateLimiterScope.launch {
-        repeat(targetRate) {
-            runCatching {
-                semaphore.acquire()
-            }.onFailure { th -> logger.error("Failed while initially acquiring permits", th) }
-        }
-
         while (true) {
             val start = System.currentTimeMillis()
             val permitsToRelease = currentRate - semaphore.availablePermits
