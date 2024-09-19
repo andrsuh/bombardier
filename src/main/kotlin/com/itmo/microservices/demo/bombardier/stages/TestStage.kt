@@ -2,24 +2,28 @@ package com.itmo.microservices.demo.bombardier.stages
 
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.flow.TestCtxKey
+import com.itmo.microservices.demo.bombardier.flow.TestImmutableInfo
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.UserNotableEvents
 import com.itmo.microservices.demo.common.logging.testServiceFiledName
-import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
 import net.logstash.logback.marker.Markers.append
 import kotlin.coroutines.coroutineContext
 
 interface TestStage {
-    suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType
+    suspend fun run(testInfo: TestImmutableInfo, userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType
     suspend fun testCtx() = coroutineContext[TestCtxKey]!!
     fun name(): String = this::class.simpleName!!
     fun isFinal() = false
 
     class RetryableTestStage(override val wrapped: TestStage) : TestStage, DecoratingStage {
-        override suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestContinuationType {
+        override suspend fun run(
+            testInfo: TestImmutableInfo,
+            userManagement: UserManagement,
+            externalServiceApi: ExternalServiceApi
+        ): TestContinuationType {
             repeat(5) {
-                when (val state = wrapped.run(userManagement, externalServiceApi)) {
+                when (val state = wrapped.run(testInfo, userManagement, externalServiceApi)) {
                     TestContinuationType.CONTINUE -> return state
                     TestContinuationType.FAIL -> return state
                     TestContinuationType.ERROR -> return state
@@ -44,10 +48,16 @@ interface TestStage {
     }
 
     class ExceptionFreeTestStage(override val wrapped: TestStage) : TestStage, DecoratingStage {
-        override suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi) = try {
-            wrapped.run(userManagement, externalServiceApi).also {
-                testCtx().stagesComplete.add(wrapped.name())
-            }
+        override suspend fun run(
+            testInfo: TestImmutableInfo,
+            userManagement: UserManagement,
+            externalServiceApi: ExternalServiceApi
+        ) = try {
+            wrapped.run(testInfo, userManagement, externalServiceApi)
+//            todo sukhoa: commenting this out as the suspension is a way expensive operation for each stage
+//            .also {
+//                testCtx().stagesComplete.add(wrapped.name())
+//            }
         } catch (failedException: TestStageFailedException) {
             TestContinuationType.FAIL
         } catch (th: Throwable) {
@@ -55,7 +65,12 @@ interface TestStage {
             while (decoratedStage is DecoratingStage) {
                 decoratedStage = decoratedStage.wrapped
             }
-            ChoosingUserAccountStage.eventLog.error(append(testServiceFiledName, testCtx().serviceName),UserNotableEvents.E_UNEXPECTED_EXCEPTION, wrapped.name(), th)
+            ChoosingUserAccountStage.eventLog.error(
+                append(testServiceFiledName, testInfo.serviceName),
+                UserNotableEvents.E_UNEXPECTED_EXCEPTION,
+                wrapped.name(),
+                th
+            )
             TestContinuationType.ERROR
         }
 
@@ -71,17 +86,24 @@ interface TestStage {
     class MetricRecordTestStage(override val wrapped: TestStage) : TestStage, DecoratingStage {
 
         override suspend fun run(
+            testInfo: TestImmutableInfo,
             userManagement: UserManagement,
             externalServiceApi: ExternalServiceApi
         ): TestContinuationType {
             val startTime = System.currentTimeMillis()
-            val state = wrapped.run(userManagement, externalServiceApi)
+            val state = wrapped.run(testInfo, userManagement, externalServiceApi)
             val endTime = System.currentTimeMillis()
 
 //            Metrics.withTags(Metrics.stageLabel to wrapped.name(), Metrics.serviceLabel to testCtx().serviceName)
 //                .stageDurationRecord(endTime - startTime, state)
 
-            PromMetrics.stageDurationRecord(wrapped.name(), testCtx().serviceName, endTime - startTime, state, state.iSFailState())
+            PromMetrics.stageDurationRecord(
+                wrapped.name(),
+                testInfo.serviceName,
+                endTime - startTime,
+                state,
+                state.iSFailState()
+            )
             return state
         }
 

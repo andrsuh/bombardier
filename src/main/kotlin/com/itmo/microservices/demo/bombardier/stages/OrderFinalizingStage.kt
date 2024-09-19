@@ -5,6 +5,7 @@ import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.BookingStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
+import com.itmo.microservices.demo.bombardier.flow.TestImmutableInfo
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderCommonNotableEvents
 import com.itmo.microservices.demo.bombardier.logging.OrderFinaizingNotableEvents.*
@@ -23,6 +24,7 @@ class OrderFinalizingStage : TestStage {
 
 
     override suspend fun run(
+        testInfo: TestImmutableInfo,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {
@@ -30,10 +32,11 @@ class OrderFinalizingStage : TestStage {
 
         eventLogger.info(I_START_FINALIZING, testCtx().orderId)
 
-        if (!testCtx().finalizationNeeded()) {
-            eventLogger.info(I_NO_FINALIZING_REQUIRED, testCtx().orderId)
-            return TestStage.TestContinuationType.CONTINUE
-        }
+// todo sukhoa: commenting this out to avoid suspension during adding the stage into the list of "finished". The suspension is a way expensive there
+//        if (!testCtx().finalizationNeeded()) {
+//            eventLogger.info(I_NO_FINALIZING_REQUIRED, testCtx().orderId)
+//            return TestStage.TestContinuationType.CONTINUE
+//        }
 
         val orderStateBeforeFinalizing = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
 

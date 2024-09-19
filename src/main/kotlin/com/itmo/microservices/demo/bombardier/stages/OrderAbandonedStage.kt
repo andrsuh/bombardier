@@ -4,7 +4,7 @@ import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLog
 import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
-import com.itmo.microservices.demo.bombardier.flow.CoroutineLoggingFactory
+import com.itmo.microservices.demo.bombardier.flow.TestImmutableInfo
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderAbandonedNotableEvents
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
@@ -22,7 +22,11 @@ class OrderAbandonedStage : TestStage {
     lateinit var eventLogger: EventLoggerWrapper
 
 
-    override suspend fun run(userManagement: UserManagement, externalServiceApi: ExternalServiceApi): TestStage.TestContinuationType {
+    override suspend fun run(
+        testInfo: TestImmutableInfo,
+        userManagement: UserManagement,
+        externalServiceApi: ExternalServiceApi
+    ): TestStage.TestContinuationType {
         eventLogger = EventLoggerWrapper(eventLog, testCtx().serviceName)
 
         val shouldBeAbandoned = Random.nextBoolean()

@@ -32,6 +32,7 @@ class OrderPaymentStage(
     lateinit var eventLogger: EventLoggerWrapper
 
     override suspend fun run(
+        testInfo: TestImmutableInfo,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {

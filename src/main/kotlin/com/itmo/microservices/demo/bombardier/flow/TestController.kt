@@ -6,7 +6,6 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServic
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWithApiAndAdditional
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
-import com.itmo.microservices.demo.common.RateLimiter
 import com.itmo.microservices.demo.common.SlowStartRateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
@@ -128,6 +127,8 @@ class TestController(
             }
         }
 
+        val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
+
         for (i in 1..100) {
             testLaunchScope.launch(
                 TestContext(
@@ -148,14 +149,14 @@ class TestController(
 
                     rateLimiter.tickBlocking()
                     logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                    launchNewTestFlow(serviceName, testingFlow, descriptor, stuff, testStages)
+                    launchNewTestFlow(testInfo, testingFlow, descriptor, stuff, testStages)
                 }
             }
         }
     }
 
     private suspend fun launchNewTestFlow(
-        serviceName: String,
+        testInfo: TestImmutableInfo,
         testingFlow: TestingFlow,
         descriptor: ServiceDescriptor,
         stuff: ServiceWithApiAndAdditional,
@@ -175,10 +176,10 @@ class TestController(
 //        ) {
         try {
             testStages.forEach { stage ->
-                val stageResult = stage.run(stuff.userManagement, stuff.api)
+                val stageResult = stage.run(testInfo, stuff.userManagement, stuff.api)
                 if (stageResult != CONTINUE) {
                     PromMetrics.testDurationRecord(
-                        serviceName,
+                        testInfo.serviceName,
                         stageResult.name,
                         System.currentTimeMillis() - testStartTime
                     )
@@ -186,10 +187,10 @@ class TestController(
                 }
             }
 
-            PromMetrics.testDurationRecord(serviceName, "SUCCESS", System.currentTimeMillis() - testStartTime)
+            PromMetrics.testDurationRecord(testInfo.serviceName, "SUCCESS", System.currentTimeMillis() - testStartTime)
         } catch (th: Throwable) {
             logger.error("Unexpected fail in test", th)
-            PromMetrics.testDurationRecord(serviceName, "UNEXPECTED_FAIL", System.currentTimeMillis() - testStartTime)
+            PromMetrics.testDurationRecord(testInfo.serviceName, "UNEXPECTED_FAIL", System.currentTimeMillis() - testStartTime)
             logger.info("Test ${testingFlow.testsFinished.incrementAndGet()} finished")
         }
 //        }.invokeOnCompletion { th ->
@@ -225,10 +226,21 @@ data class TestContext(
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
 
-    fun finalizationNeeded() = OrderFinalizingStage::class.java.simpleName !in stagesComplete ||
-        (OrderChangeItemsAfterFinalizationStage::class.java.simpleName in stagesComplete
-            && wasChangedAfterFinalization)
+//    fun finalizationNeeded() = OrderFinalizingStage::class.java.simpleName !in stagesComplete ||
+//        (OrderChangeItemsAfterFinalizationStage::class.java.simpleName in stagesComplete
+//            && wasChangedAfterFinalization)
 }
+
+// create separate object for immutable data to avoid suspensions during obtaining the coroutine context
+data class TestImmutableInfo(
+    val testId: UUID = UUID.randomUUID(),
+    val serviceName: String,
+    val stopAfterOrderCreation: Boolean = false,
+    val testStartTime: Long = System.currentTimeMillis(),
+) {
+    lateinit var userId: UUID
+}
+
 
 data class PaymentDetails(
 //    var startedAt: Long? = null,

@@ -27,6 +27,7 @@ class OrderDeliveryStage : TestStage {
     }
 
     override suspend fun run(
+        testInfo: TestImmutableInfo,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {

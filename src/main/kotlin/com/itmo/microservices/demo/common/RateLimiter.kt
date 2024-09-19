@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger
 class RateLimiter(
     private val rate: Int,
     private val timeUnit: TimeUnit = TimeUnit.MINUTES,
-    private val slowStartOn: Boolean = true,
 ) {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(RateLimiter::class.java)
@@ -22,17 +21,13 @@ class RateLimiter(
         private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     }
 
-    @Volatile
-    private var effectiveRate = if (slowStartOn) 1 else rate
-
-    @Volatile
-    private var semaphore = Semaphore(effectiveRate)
+    private var semaphore = Semaphore(rate)
     private val semaphoreNumber = counter.getAndIncrement()
 
     private val releaseJob = rateLimiterScope.launch {
         while (true) {
             val start = System.currentTimeMillis()
-            val permitsToRelease = effectiveRate - semaphore.availablePermits
+            val permitsToRelease = rate - semaphore.availablePermits
             repeat(permitsToRelease) {
                 runCatching {
                     semaphore.release()
@@ -40,30 +35,13 @@ class RateLimiter(
             }
             logger.warn("Semaphore ${semaphoreNumber}. Released $permitsToRelease permits")
 
-            if (slowStartOn && effectiveRate < rate) {
-                effectiveRate = minOf(rate, effectiveRate * 2)
-                semaphore = Semaphore(effectiveRate)
-            }
-
             delay(timeUnit.toMillis(1) - (System.currentTimeMillis() - start))
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 
     fun tick() = semaphore.tryAcquire()
 
-    suspend fun tickBlocking() {
-        while (true) {
-            try {
-                withTimeout(1000) {
-                    semaphore.acquire()
-                    return@withTimeout
-                }
-                break
-            } catch (ignored: TimeoutCancellationException) {}
-//            if (semaphore.tryAcquire()) break
-//            delay(50)
-        }
-    }
+    suspend fun tickBlocking() = semaphore.acquire()
 }
 
 class SlowStartRateLimiter(
@@ -140,8 +118,6 @@ class CountingRateLimiter(
             }
         }
     }
-
-//    fun tickBlocking() = semaphore.acquire()
 
     class RlInternal(
         var segmentStart: Long = System.currentTimeMillis(),

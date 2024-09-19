@@ -4,6 +4,7 @@ import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLog
 import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
+import com.itmo.microservices.demo.bombardier.flow.TestImmutableInfo
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderSettingsDeliveryNotableEvents.*
 import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
@@ -20,6 +21,7 @@ class OrderSettingDeliverySlotsStage : TestStage {
     lateinit var eventLogger: EventLoggerWrapper
 
     override suspend fun run(
+        testInfo: TestImmutableInfo,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {
