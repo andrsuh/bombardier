@@ -56,6 +56,12 @@ open class ExternalServiceApiCommunicator(
 ) {
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaTypeOrNull()
+        private val httpClientCallbackExecutor = Executors.newFixedThreadPool(
+            16,
+            NamedThreadFactory("http-client-callback-executor")
+        ).also {
+            Metrics.executorServiceMonitoring(it, "http-client-callback-executor")
+        }
     }
 
     val logger = LoggerWrapper(
@@ -124,7 +130,7 @@ open class ExternalServiceApiCommunicator(
 
 //            httpClientsManager.getClient(externalApiMethod).sendAsync(req, HttpResponse.BodyHandlers.ofString())
             httpClientsManager.getClient(testId).sendAsync(req, HttpResponse.BodyHandlers.ofString())
-                .thenApply { resp ->
+                .thenApplyAsync({ resp ->
                     if (HttpStatus.Series.resolve(resp.statusCode()) == HttpStatus.Series.SUCCESSFUL) {
                         PromMetrics.externalMethodDurationRecord(
                             serviceName,
@@ -152,15 +158,14 @@ open class ExternalServiceApiCommunicator(
                             )
                         )
                     }
-                }
-                .exceptionally { th ->
+                }, httpClientCallbackExecutor)
+                .exceptionallyAsync({ th ->
                     PromMetrics.externalMethodDurationRecord(
                         serviceName,
                         externalApiMethod, "FAILED", System.currentTimeMillis() - submissionTime
                     )
                     it.resumeWithException(th)
-                }
-
+                }, httpClientCallbackExecutor)
 
 
 //            httpClientsManager.getClient(externalApiMethod).newCall(req).enqueue(object : Callback {
