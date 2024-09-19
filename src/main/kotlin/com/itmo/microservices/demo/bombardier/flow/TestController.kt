@@ -130,15 +130,15 @@ class TestController(
         val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
 
         for (i in 1..100) {
-            testLaunchScope.launch(
-                TestContext(
-                    serviceName = serviceName,
-                    launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
-                    totalTestsNumber = testingFlow.testParams.numberOfTests,
-                    testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-                    stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
-                )
-            ) {
+            val testContext = TestContext(
+                serviceName = serviceName,
+                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+                totalTestsNumber = testingFlow.testParams.numberOfTests,
+                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation,
+            )
+
+            testLaunchScope.launch(testContext) {
                 while (true) {
                     val testNum = testingFlow.testsStarted.getAndIncrement()
                     if (testNum > params.numberOfTests) {
@@ -147,6 +147,7 @@ class TestController(
                         return@launch
                     }
 
+                    testContext.testStartTime = System.currentTimeMillis()
                     rateLimiter.tickBlocking()
                     logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
                     launchNewTestFlow(testInfo, testingFlow, descriptor, stuff, testStages)
@@ -221,7 +222,7 @@ data class TestContext(
     var totalTestsNumber: Int,
     val testSuccessByThePaymentFact: Boolean = false,
     val stopAfterOrderCreation: Boolean = false,
-    val testStartTime: Long = System.currentTimeMillis()
+    var testStartTime: Long = System.currentTimeMillis(),
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey
