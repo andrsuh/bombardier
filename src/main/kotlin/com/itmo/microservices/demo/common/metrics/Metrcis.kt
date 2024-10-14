@@ -20,6 +20,10 @@ class PromMetrics {
         val stageLabel = "stage"
         val serviceLabel = "service"
 
+        private val executor = Executors.newFixedThreadPool(2, NamedThreadFactory("prom-metrics-dispatcher")).also {
+            Metrics.executorServiceMonitoring(it, "prom-metrics-dispatcher")
+        }
+
         private val stageDuration = Summary.build()
             .name("stage_duration_ok")
             .help("Stage duration.")
@@ -62,7 +66,9 @@ class PromMetrics {
             .register(promRegistry)
 
         fun testDurationRecord(serviceName: String, testOutcome: String, timeMs: Long) {
-            testDuration.labels(serviceName, testOutcome).observe(timeMs.toDouble())
+            executor.submit{
+                testDuration.labels(serviceName, testOutcome).observe(timeMs.toDouble())
+            }
         }
 
         fun stageDurationRecord(
@@ -72,19 +78,28 @@ class PromMetrics {
             state: TestContinuationType,
             failed: Boolean
         ) {
-            stageDuration.labels(stageName, serviceName, if (failed) "failed" else "success").observe(timeMs.toDouble())
+            executor.submit {
+                stageDuration.labels(stageName, serviceName, if (failed) "failed" else "success")
+                    .observe(timeMs.toDouble())
+            }
         }
 
         fun externalSysDurationRecord(serviceName: String, accountName: String, outcome: String, timeMs: Long) {
-            externalSysDuration.labels(serviceName, accountName, outcome).observe(timeMs.toDouble())
+            executor.submit {
+                externalSysDuration.labels(serviceName, accountName, outcome).observe(timeMs.toDouble())
+            }
         }
 
         fun timeHttpRequestLatent(serviceName: String, method: String, timeMs: Long) {
-            httpRequestLatent.labels(serviceName, method).observe(timeMs.toDouble())
+            executor.submit {
+                httpRequestLatent.labels(serviceName, method).observe(timeMs.toDouble())
+            }
         }
 
         fun externalMethodDurationRecord(serviceName: String, method: String, result: String, timeMs: Long) {
-            httpExternalDuration.labels(serviceName, method, result).observe(timeMs.toDouble())
+            executor.submit {
+                httpExternalDuration.labels(serviceName, method, result).observe(timeMs.toDouble())
+            }
         }
     }
 }
@@ -120,7 +135,7 @@ class Metrics(private val tags: List<Tag>) {
             ExecutorServiceMetrics.monitor(globalRegistry, executorService, executorName, listOf())
         }
 
-        private val executor = Executors.newFixedThreadPool(16, NamedThreadFactory("metrics-dispatcher")).also {
+        private val executor = Executors.newFixedThreadPool(2, NamedThreadFactory("metrics-dispatcher")).also {
             executorServiceMonitoring(it, "metrics-dispatcher")
         }
     }
