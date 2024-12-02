@@ -4,6 +4,7 @@ import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLog
 import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.OrderStatus
+import com.itmo.microservices.demo.bombardier.flow.TestContext
 import com.itmo.microservices.demo.bombardier.flow.TestImmutableInfo
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import com.itmo.microservices.demo.bombardier.logging.OrderSettingsDeliveryNotableEvents.*
@@ -21,30 +22,30 @@ class OrderSettingDeliverySlotsStage : TestStage {
     lateinit var eventLogger: EventLoggerWrapper
 
     override suspend fun run(
-        testInfo: TestImmutableInfo,
+        testCtx: TestContext,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {
-        eventLogger = EventLoggerWrapper(eventLog, testCtx().serviceName)
+        eventLogger = EventLoggerWrapper(eventLog, testCtx.serviceName)
 
-        eventLogger.info(I_CHOOSE_SLOT, testCtx().orderId)
+        eventLogger.info(I_CHOOSE_SLOT, testCtx.orderId)
 
 
-        val availableSlots = externalServiceApi.getDeliverySlots(testCtx().userId!!)
+        val availableSlots = externalServiceApi.getDeliverySlots(testCtx.userId!!)
 
         val deliverySlot = availableSlots.random()
-        val deliveryId = externalServiceApi.setDeliveryTime(testCtx().userId!!, testCtx().orderId!!, deliverySlot)
+        val deliveryId = externalServiceApi.setDeliveryTime(testCtx.userId!!, testCtx.orderId!!, deliverySlot)
 
         ConditionAwaiter.awaitAtMost(40, TimeUnit.SECONDS, Duration.ofSeconds(4)).condition {
-            val order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+            val order = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!)
 
             order.deliveryId == deliveryId && order.status == OrderStatus.OrderDeliverySet
         }.onFailure {
-            eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, testCtx().orderId!!)
+            eventLogger.error(E_CHOOSE_SLOT_FAIL, deliveryId, testCtx.orderId!!)
             throw TestStage.TestStageFailedException("Exception instead of silently fail")
         }.startWaiting()
 
-        eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot, testCtx().orderId)
+        eventLogger.info(I_CHOOSE_SLOT_SUCCESS, deliverySlot, testCtx.orderId)
         return TestStage.TestContinuationType.CONTINUE
     }
 }

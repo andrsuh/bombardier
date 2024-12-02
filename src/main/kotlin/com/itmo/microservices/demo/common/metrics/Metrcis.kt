@@ -20,7 +20,7 @@ class PromMetrics {
         val stageLabel = "stage"
         val serviceLabel = "service"
 
-        private val executor = Executors.newFixedThreadPool(2, NamedThreadFactory("prom-metrics-dispatcher")).also {
+        private val executor = Executors.newFixedThreadPool(8, NamedThreadFactory("prom-metrics-dispatcher")).also {
             Metrics.executorServiceMonitoring(it, "prom-metrics-dispatcher")
         }
 
@@ -28,8 +28,8 @@ class PromMetrics {
             .name("stage_duration_ok")
             .help("Stage duration.")
             .labelNames(stageLabel, serviceLabel, "result")
-            .quantile(0.5, 0.05)
-            .quantile(0.95, 0.05)
+//            .quantile(0.5, 0.05)
+//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
 
@@ -37,32 +37,32 @@ class PromMetrics {
             .name("test_duration")
             .help("Test duration.")
             .labelNames(serviceLabel, "test_duration")
-            .quantile(0.5, 0.05)
-            .quantile(0.95, 0.05)
+//            .quantile(0.5, 0.05)
+//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         private val externalSysDuration = Summary.build()
             .name("external_sys_duration")
             .help("External system duration.")
             .labelNames(serviceLabel, "accountName", "outcome")
-            .quantile(0.5, 0.05)
-            .quantile(0.95, 0.05)
+//            .quantile(0.5, 0.05)
+//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         private val httpRequestLatent = Summary.build()
             .name("http_request_latent")
             .help("HTTP request latency.")
             .labelNames(serviceLabel, "method")
-            .quantile(0.5, 0.05)
-            .quantile(0.95, 0.05)
+//            .quantile(0.5, 0.05)
+//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         private val httpExternalDuration = Summary.build()
             .name("http_external_duration")
             .help("HTTP external duration.")
             .labelNames(serviceLabel, "method", "result")
-            .quantile(0.5, 0.05)
-            .quantile(0.95, 0.05)
+//            .quantile(0.5, 0.05)
+//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         fun testDurationRecord(serviceName: String, testOutcome: String, timeMs: Long) {
@@ -135,7 +135,7 @@ class Metrics(private val tags: List<Tag>) {
             ExecutorServiceMetrics.monitor(globalRegistry, executorService, executorName, listOf())
         }
 
-        private val executor = Executors.newFixedThreadPool(2, NamedThreadFactory("metrics-dispatcher")).also {
+        private val executor = Executors.newFixedThreadPool(8, NamedThreadFactory("metrics-dispatcher")).also {
             executorServiceMonitoring(it, "metrics-dispatcher")
         }
     }

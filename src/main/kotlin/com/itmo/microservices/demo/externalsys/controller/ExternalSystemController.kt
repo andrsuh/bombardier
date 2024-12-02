@@ -29,14 +29,12 @@ class ExternalSystemController(
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
         const val rateLimitDefault = 1
-        val rateLimitDefaultUnit = TimeUnit.SECONDS
-        const val winDefault = 8
     }
 
     private val invoices = ConcurrentHashMap<String, AtomicInteger>()
     private val accounts = ConcurrentHashMap<String, Account>()
 
-    private val blockList = ConcurrentHashMap<String, Boolean>()
+    private val blockList = ConcurrentHashMap<String, Long>()
 
 // testing accounts, old
 //    @PostConstruct
@@ -197,7 +195,7 @@ class ExternalSystemController(
                 service.name,
                 accName7,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000, fullBlockingProbability = 0.005),
+                slo = Slo(upperLimitInvocationMillis = 10_000, accountBlockingProbability = 0.005),
                 rateLimiter = makeRateLimiter(accName7, 7, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(10),
                 price = (basePrice * 0.3).toInt()
@@ -258,14 +256,21 @@ class ExternalSystemController(
         val accountName: String,
         val callbackPath: String?,
         val slo: Slo = Slo(),
+        val network: Network = Network(),
         val rateLimiter: RateLimiter,
         val window: SemaphoreOngoingWindow,
         val price: Int,
     )
 
+    data class Network(
+        val noiseLowerBoundMillis: Long = 0,
+        val noiseUpperBoundMillis: Long = 5,
+    )
+
     data class Slo(
         val upperLimitInvocationMillis: Long = 10_000,
-        val fullBlockingProbability: Double = 0.0,
+        val accountBlockingProbability: Double = 0.0,
+        val timeLimitsBreachingProbability: Double = 0.0,
         val errorResponseProbability: Double = -1.0,
     )
 
@@ -276,6 +281,7 @@ class ExternalSystemController(
         @RequestParam transactionId: String,
         @RequestParam paymentId: String,
     ): ResponseEntity<Response> {
+
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysRequestSubmitted()
@@ -284,18 +290,17 @@ class ExternalSystemController(
 
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
 
-//        if (Random.nextDouble(0.0, 1.0) < account.slo.fullBlockingProbability) {
-//            blockList[accountName] = true
-//        }
-//
-//        if (blockList[accountName] == true) {
-//            delay(Random.nextLong(account.slo.upperLimitInvocationMillis * 10))
-//            blockList[accountName] = false
-//        }
-
-        val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.let {
-            it.addAndGet(account.price)
+        if (Random.nextDouble(0.0, 1.0) < account.slo.accountBlockingProbability) {
+            blockList[accountName] = System.currentTimeMillis() + Random.nextLong(account.slo.upperLimitInvocationMillis * 100)
         }
+
+        val blockUntil = blockList[accountName]
+        if (blockUntil != null) {
+            delay(blockUntil - System.currentTimeMillis())
+            blockList.remove(accountName)
+        }
+
+        val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.addAndGet(account.price) // todo sukhoa should be changed for batch
 
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
@@ -305,7 +310,7 @@ class ExternalSystemController(
 
         if (!account.rateLimiter.acquirePermission()) {
             PromMetrics.externalSysDurationRecord(serviceName, accountName, "RL_BREACHED", System.currentTimeMillis() - start)
-
+            networkLatency(account)
             return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
         }
 
@@ -313,15 +318,20 @@ class ExternalSystemController(
             if (account.window.tryAcquire()) {
                 val duration = Random.nextLong(0, account.slo.upperLimitInvocationMillis)
                 delay(duration)
+
+                if (Random.nextDouble(0.0, 1.0) < account.slo.timeLimitsBreachingProbability) {
+                    delay(Random.nextLong(account.slo.upperLimitInvocationMillis))
+                }
+
                 logger.info("[external] - Transaction $transactionId. Duration: $duration")
 
-
+                // todo sukhoa following for each event in the batch:
                 val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
 
                 coroutineScope {
-                    launch {
+                    launch { // better to make channel + background coroutine that will wake up payments
                         try {
-                            if (result) {
+                            if (result) { // todo sukhoa we have to unblock it for the error also no?
                                 withTimeout(200) {
                                     merger.putSecondValueAndWaitForFirst(
                                         UUID.fromString(paymentId),
@@ -340,10 +350,11 @@ class ExternalSystemController(
 
                 return ResponseEntity.ok(Response(result)).also {
                     account.window.release()
+                    networkLatency(account) // todo sukhoa once for the batch
                 }
             } else {
                 PromMetrics.externalSysDurationRecord(serviceName, accountName, "WIN_BREACHED", System.currentTimeMillis() - start)
-
+                networkLatency(account) // todo sukhoa once for the batch
                 return ResponseEntity.status(500).body(
                     Response(
                         false,
@@ -352,10 +363,19 @@ class ExternalSystemController(
                 )
             }
         } catch (e: Exception) {
-            account.window.release()
+            account.window.release() // todo sukhoa once for the batch
             PromMetrics.externalSysDurationRecord(serviceName, accountName, "UNEXPECTED_ERROR", System.currentTimeMillis() - start)
+            networkLatency(account) // todo sukhoa once for the batch
             throw e
         }
+    }
+
+    suspend fun networkLatency(account: Account) {
+        if (account.network.noiseUpperBoundMillis == 0L) return
+        return delay(Random.nextLong(
+            account.network.noiseLowerBoundMillis,
+            account.network.noiseUpperBoundMillis)
+        )
     }
 
     class Response(

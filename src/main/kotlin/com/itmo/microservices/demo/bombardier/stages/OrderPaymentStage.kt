@@ -32,25 +32,25 @@ class OrderPaymentStage(
     lateinit var eventLogger: EventLoggerWrapper
 
     override suspend fun run(
-        testInfo: TestImmutableInfo,
+        testCtx: TestContext,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {
-        eventLogger = EventLoggerWrapper(eventLog, testCtx().serviceName)
+        eventLogger = EventLoggerWrapper(eventLog, testCtx.serviceName)
 
 
-        val paymentDetails = testCtx().paymentDetails
+        val paymentDetails = testCtx.paymentDetails
         paymentDetails.attempt++
 
-        eventLogger.info(I_PAYMENT_STARTED, testCtx().orderId)
+        eventLogger.info(I_PAYMENT_STARTED, testCtx.orderId)
 
         val paymentSubmissionDto = externalServiceApi.payOrder(
-            testCtx().userId!!,
-            testCtx().orderId!!
+            testCtx.userId!!,
+            testCtx.orderId!!
         )
         eventLog.info(
             I_STARTED_PAYMENT,
-            testCtx().orderId!!,
+            testCtx.orderId!!,
             paymentSubmissionDto.timestamp,
             paymentSubmissionDto.transactionId
         )
@@ -59,10 +59,10 @@ class OrderPaymentStage(
                 merger.putFirstValueAndWaitForSecond(paymentSubmissionDto.transactionId, true)
             }
         } catch (timeoutException: TimeoutCancellationException) {
-            eventLogger.error(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx().orderId, 80L)
+            eventLogger.error(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx.orderId, 80L)
             Metrics
                 .withTags(
-                    Metrics.serviceLabel to testCtx().serviceName,
+                    Metrics.serviceLabel to testCtx.serviceName,
                     paymentOutcome to "FAIL",
                     paymentFailureReason to "SUBMIT_TIMEOUT"
                 )
@@ -72,10 +72,10 @@ class OrderPaymentStage(
 
 
 //        val paymentSubmissionTimeout = 20L
-//        var order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+//        var order = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!)
 //        ConditionAwaiter.awaitAtMost(paymentSubmissionTimeout, TimeUnit.SECONDS, Duration.ofSeconds(15))
 //            .condition {
-//                order = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+//                order = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!)
 //                order.status == OrderStatus.OrderPaymentInProgress || order.status == OrderStatus.OrderPayed || order.status == OrderStatus.OrderPaymentFailed
 //            }
 //            .onFailure {
@@ -84,16 +84,16 @@ class OrderPaymentStage(
 //                    throw it
 //                }
 //                Metrics
-//                    .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SUBMIT_TIMEOUT")
+//                    .withTags(Metrics.serviceLabel to testCtx.serviceName, paymentOutcome to "FAIL", paymentFailureReason to "SUBMIT_TIMEOUT")
 //                    .paymentFinished()
 //                throw TestStage.TestStageFailedException("Exception instead of silently fail")
 //            }.startWaiting()
 
-        if (!testCtx().testSuccessByThePaymentFact) {
+        if (!testCtx.testSuccessByThePaymentFact) {
             val startWaitingPayment = System.currentTimeMillis()
             eventLog.info(
                 I_START_WAITING_FOR_PAYMENT_RESULT,
-                testCtx().orderId!!,
+                testCtx.orderId!!,
                 paymentSubmissionDto.transactionId,
                 startWaitingPayment - paymentSubmissionDto.timestamp
             )
@@ -103,19 +103,19 @@ class OrderPaymentStage(
 
             ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(30))
                 .condition {
-                    logRecord = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!).paymentHistory
+                    logRecord = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!).paymentHistory
                         .find { it.transactionId == paymentSubmissionDto.transactionId }
 
                     logRecord != null
                 }
                 .onFailure {
-                    eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, testCtx().orderId)
+                    eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, testCtx.orderId)
                     if (it != null) {
                         throw it
                     }
                     Metrics
                         .withTags(
-                            Metrics.serviceLabel to testCtx().serviceName,
+                            Metrics.serviceLabel to testCtx.serviceName,
                             paymentOutcome to "FAIL",
                             paymentFailureReason to "NO_OUTCOME"
                         )
@@ -134,13 +134,13 @@ class OrderPaymentStage(
                 ) {
                     eventLogger.error(
                         E_PAYMENT_TIMEOUT_EXCEEDED,
-                        testCtx().orderId,
+                        testCtx.orderId,
                         paymentTimeout,
                         Duration.ofMillis(paymentLogRecord.timestamp - paymentSubmissionDto.timestamp)
                     )
                     Metrics
                         .withTags(
-                            Metrics.serviceLabel to testCtx().serviceName,
+                            Metrics.serviceLabel to testCtx.serviceName,
                             paymentOutcome to "FAIL",
                             paymentFailureReason to "TIMEOUT"
                         )
@@ -151,29 +151,29 @@ class OrderPaymentStage(
 //                ConditionAwaiter.awaitAtMost(10, TimeUnit.SECONDS)
 //                    .condition {
 //                        val userChargedRecord =
-//                            externalServiceApi.userFinancialHistory(testCtx().userId!!, testCtx().orderId!!)
+//                            externalServiceApi.userFinancialHistory(testCtx.userId!!, testCtx.orderId!!)
 //                                .find { it.paymentId == paymentSubmissionDto.transactionId }
 //
 //                        userChargedRecord?.type == FinancialOperationType.WITHDRAW
 //                    }
 //                    .onFailure {
-//                        eventLogger.error(E_WITHDRAW_NOT_FOUND, order.id, testCtx().userId)
+//                        eventLogger.error(E_WITHDRAW_NOT_FOUND, order.id, testCtx.userId)
 //                        if (it != null) {
 //                            throw it
 //                        }
 //                        Metrics
-//                            .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "FAIL", paymentFailureReason to "WITHDRAW_NOT_FOUND")
+//                            .withTags(Metrics.serviceLabel to testCtx.serviceName, paymentOutcome to "FAIL", paymentFailureReason to "WITHDRAW_NOT_FOUND")
 //                            .paymentFinished()
 //                        throw TestStage.TestStageFailedException("Exception instead of silently fail")
 //                    }.startWaiting()
 
                 Metrics
-                    .withTags(Metrics.serviceLabel to testCtx().serviceName)
+                    .withTags(Metrics.serviceLabel to testCtx.serviceName)
                     .paymentsAmountRecord(paymentLogRecord.amount)
 
                 Metrics
                     .withTags(
-                        Metrics.serviceLabel to testCtx().serviceName,
+                        Metrics.serviceLabel to testCtx.serviceName,
                         paymentOutcome to "SUCCESS",
                         paymentFailureReason to ""
                     )
@@ -182,7 +182,7 @@ class OrderPaymentStage(
 //                paymentDetails.finishedAt = System.currentTimeMillis()
                 eventLogger.info(
                     I_PAYMENT_SUCCESS,
-                    testCtx().orderId,
+                    testCtx.orderId,
                     paymentSubmissionDto.transactionId,
                     paymentLogRecord.timestamp - paymentSubmissionDto.timestamp
                 )
@@ -194,21 +194,21 @@ class OrderPaymentStage(
 //                if (paymentDetails.attempt < 3) {
 //                    eventLogger.info(I_PAYMENT_RETRY, order.id, paymentDetails.attempt)
 //                    Metrics
-//                        .withTags(Metrics.serviceLabel to testCtx().serviceName, paymentOutcome to "RETRY", paymentFailureReason to "SHOP_REJECTED")
+//                        .withTags(Metrics.serviceLabel to testCtx.serviceName, paymentOutcome to "RETRY", paymentFailureReason to "SHOP_REJECTED")
 //                        .paymentFinished()
 //
 //                    return TestStage.TestContinuationType.RETRY
 //                } else {
                 eventLogger.error(
                     E_PAYMENT_FAILED,
-                    testCtx().orderId,
+                    testCtx.orderId,
                     paymentSubmissionDto.transactionId,
                     paymentLogRecord.timestamp - paymentSubmissionDto.timestamp
                 )
 //                    paymentDetails.failedAt = System.currentTimeMillis()
                 Metrics
                     .withTags(
-                        Metrics.serviceLabel to testCtx().serviceName,
+                        Metrics.serviceLabel to testCtx.serviceName,
                         paymentOutcome to "FAIL",
                         paymentFailureReason to "SHOP_REJECTED"
                     )
@@ -219,11 +219,11 @@ class OrderPaymentStage(
             else -> {
 //                eventLogger.error(
 //                    OrderCommonNotableEvents.E_ILLEGAL_ORDER_TRANSITION,
-//                    testCtx().orderId, order.status, status
+//                    testCtx.orderId, order.status, status
 //                )
                 Metrics
                     .withTags(
-                        Metrics.serviceLabel to testCtx().serviceName,
+                        Metrics.serviceLabel to testCtx.serviceName,
                         paymentOutcome to "FAIL",
                         paymentFailureReason to "UNEXPECTED"
                     )

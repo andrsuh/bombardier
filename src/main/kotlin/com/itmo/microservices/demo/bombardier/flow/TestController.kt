@@ -36,7 +36,7 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    private val executor: ExecutorService = Executors.newFixedThreadPool(16, NamedThreadFactory("test-controller-executor")).also {
+    private val executor: ExecutorService = Executors.newFixedThreadPool(32, NamedThreadFactory("test-controller-executor")).also {
         Metrics.executorServiceMonitoring(it, "test-controller-executor")
     }
 
@@ -130,13 +130,13 @@ class TestController(
 
         val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
 
-        for (i in 1..100) {
+        for (i in 1..200_000) {
             val testContext = TestContext(
                 serviceName = serviceName,
                 launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
                 totalTestsNumber = testingFlow.testParams.numberOfTests,
                 testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation,
+                testImmutableInfo = testInfo
             )
 
             testLaunchScope.launch(testContext) {
@@ -151,14 +151,14 @@ class TestController(
                     testContext.testStartTime = System.currentTimeMillis()
                     rateLimiter.tickBlocking()
                     logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                    launchNewTestFlow(testInfo, testingFlow, descriptor, stuff, testStages)
+                    launchNewTestFlow(testContext, testingFlow, descriptor, stuff, testStages)
                 }
             }
         }
     }
 
     private suspend fun launchNewTestFlow(
-        testInfo: TestImmutableInfo,
+        testInfo: TestContext,
         testingFlow: TestingFlow,
         descriptor: ServiceDescriptor,
         stuff: ServiceWithApiAndAdditional,
@@ -224,6 +224,7 @@ data class TestContext(
     val testSuccessByThePaymentFact: Boolean = false,
     val stopAfterOrderCreation: Boolean = false,
     var testStartTime: Long = System.currentTimeMillis(),
+    val testImmutableInfo: TestImmutableInfo,
 ) : CoroutineContext.Element {
     override val key: CoroutineContext.Key<TestContext>
         get() = TestCtxKey

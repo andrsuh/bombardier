@@ -27,13 +27,13 @@ class OrderDeliveryStage : TestStage {
     }
 
     override suspend fun run(
-        testInfo: TestImmutableInfo,
+        testCtx: TestContext,
         userManagement: UserManagement,
         externalServiceApi: ExternalServiceApi
     ): TestStage.TestContinuationType {
-        eventLogger = EventLoggerWrapper(eventLog, testCtx().serviceName)
+        eventLogger = EventLoggerWrapper(eventLog, testCtx.serviceName)
 
-        val orderBeforeDelivery = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+        val orderBeforeDelivery = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!)
 
         if (orderBeforeDelivery.deliveryDuration == null) {
             eventLogger.error(E_INCORRECT_ORDER_STATUS, orderBeforeDelivery.id, orderBeforeDelivery.status)
@@ -42,12 +42,12 @@ class OrderDeliveryStage : TestStage {
 
         ConditionAwaiter.awaitAtMost(Duration.ofMillis(orderBeforeDelivery.deliveryDuration).toSeconds() + 5, TimeUnit.SECONDS)
             .condition {
-                val updatedOrder = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+                val updatedOrder = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!)
                 updatedOrder.status is OrderStatus.OrderDelivered ||
                         updatedOrder.status is OrderStatus.OrderRefund &&
                         externalServiceApi.userFinancialHistory(
-                            testCtx().userId!!,
-                            testCtx().orderId!!
+                            testCtx.userId!!,
+                            testCtx.orderId!!
                         ).last().type == FinancialOperationType.REFUND
             }
             .onFailure {
@@ -58,10 +58,10 @@ class OrderDeliveryStage : TestStage {
                 throw TestStage.TestStageFailedException("Exception instead of silently fail")
             }
             .startWaiting()
-        val orderAfterDelivery = externalServiceApi.getOrder(testCtx().userId!!, testCtx().orderId!!)
+        val orderAfterDelivery = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!)
         when (orderAfterDelivery.status) {
             is OrderStatus.OrderDelivered -> {
-                val deliveryLogArray = externalServiceApi.deliveryLog(testCtx().userId!!, testCtx().orderId!!)
+                val deliveryLogArray = externalServiceApi.deliveryLog(testCtx.userId!!, testCtx.orderId!!)
                 deliveryLogArray.forEach { deliveryLog ->
                     if (deliveryLog.outcome != DeliverySubmissionOutcome.SUCCESS) {
                         eventLogger.error(E_DELIVERY_OUTCOME_FAIL, orderAfterDelivery.id)
@@ -85,7 +85,7 @@ class OrderDeliveryStage : TestStage {
             }
             is OrderStatus.OrderRefund -> {
                 val userFinancialHistory =
-                    externalServiceApi.userFinancialHistory(testCtx().userId!!, testCtx().orderId!!)
+                    externalServiceApi.userFinancialHistory(testCtx.userId!!, testCtx.orderId!!)
                 if (userFinancialHistory.filter { it.type == FinancialOperationType.WITHDRAW }.sumOf { it.amount } !=
                     userFinancialHistory.filter { it.type == FinancialOperationType.REFUND }.sumOf { it.amount }) {
                     eventLogger.error(E_WITHDRAW_AND_REFUND_DIFFERENT, orderAfterDelivery.id,

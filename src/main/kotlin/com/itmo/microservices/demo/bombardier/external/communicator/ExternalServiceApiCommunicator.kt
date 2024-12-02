@@ -34,7 +34,6 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import javax.net.ssl.SSLContext
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
@@ -242,7 +241,7 @@ class HttpClientsManager {
         private val CALL_TIMEOUT = Duration.ofSeconds(10)
         private val READ_TIMEOUT = Duration.ofSeconds(10)
         private val WRITE_TIMEOUT = Duration.ofSeconds(10)
-        private const val NUMBER_OF_CLIENTS = 3
+        private const val NUMBER_OF_CLIENTS = 5
         private const val NUMBER_OF_THREADS_PER_EXECUTOR = 16
 
         val logger = LoggerFactory.getLogger(HttpClientsManager::class.java)
@@ -280,6 +279,36 @@ class HttpClientsManager {
 //                .sslContext(SSLContext.getDefault())
                 .build()
         }
+    }
+
+//    fun getClient(testIdentifier: String): HttpClient {
+//        val hash = abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS
+//
+//        executors.computeIfAbsent(hash) {
+//            Executors.newFixedThreadPool(
+//                NUMBER_OF_THREADS_PER_EXECUTOR,
+//                NamedThreadFactory("external-service-executor-$hash")
+//            ).also {
+//                Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
+//            }
+////                .also {
+////                Metrics.executorServiceMonitoring(it, "external-service-executor-$hash")
+////            }.let {
+////                Dispatcher(it).also {
+////                    it.maxRequests = 15000
+////                    it.maxRequestsPerHost = 15000
+////                }
+////            }
+//        }
+//
+//        return clients.computeIfAbsent(hash) {
+//            logger.info("Creating new http client for test $testIdentifier")
+//            HttpClient.newBuilder()
+//                .executor(executors[hash])
+//                .version(HTTP_2)
+////                .sslContext(SSLContext.getDefault())
+//                .build()
+//        }
 
 //        return clients.computeIfAbsent(abs(testIdentifier.hashCode()) % NUMBER_OF_CLIENTS) {
 //            logger.info("Creating new http client for test $testIdentifier")
@@ -334,8 +363,7 @@ class HttpClientsManager {
 //            }
 //        }
 
-    }
-
+//    }
 
 
     class Reactor : Runnable {
@@ -375,11 +403,11 @@ class HttpClientsManager {
                     this@Reactor.socket.accept()?.let {
                         Handler(selector, it)
                     }
-                } catch (_: IOException) { }
+                } catch (_: IOException) {
+                }
             }
         }
     }
-
 
 
     class Handler(
@@ -408,7 +436,8 @@ class HttpClientsManager {
             try {
                 if (state == READING) read()
                 else if (state == SENDING) send()
-            } catch (ex: IOException) { }
+            } catch (ex: IOException) {
+            }
         }
 
         fun read() {
@@ -436,5 +465,4 @@ class HttpClientsManager {
         fun process() {
         }
     }
-
 }
