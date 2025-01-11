@@ -11,6 +11,7 @@ import com.itmo.microservices.demo.common.metrics.PromMetrics
 import io.github.resilience4j.ratelimiter.RateLimiter
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -123,9 +124,9 @@ class ExternalSystemController(
                 service.name,
                 accName1,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 40_000),
-                rateLimiter = makeRateLimiter(accName1, 500, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(8500),
+                slo = Slo(upperLimitInvocationMillis = 2),
+                rateLimiter = makeRateLimiter(accName1, 3000, TimeUnit.SECONDS),
+                window = SemaphoreOngoingWindow(500000),
                 price = basePrice
             )
 
@@ -159,7 +160,7 @@ class ExternalSystemController(
                 service.name,
                 accName4,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 15_000),
+                slo = Slo(upperLimitInvocationMillis = 9_000),
                 rateLimiter = makeRateLimiter(accName4, 5, TimeUnit.SECONDS),
                 window = SemaphoreOngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
@@ -264,7 +265,7 @@ class ExternalSystemController(
 
     data class Network(
         val noiseLowerBoundMillis: Long = 0,
-        val noiseUpperBoundMillis: Long = 5,
+        val noiseUpperBoundMillis: Long = 10,
     )
 
     data class Slo(
@@ -274,6 +275,15 @@ class ExternalSystemController(
         val errorResponseProbability: Double = -1.0,
     )
 
+    @PostMapping("/process/bulk")
+    suspend fun processBulk(
+        @RequestBody request: BulkRequest
+    ): ResponseEntity<BulkResponse> {
+        val (code, resp) = processInternal(request)
+
+        return ResponseEntity.status(code).body(resp)
+    }
+
     @PostMapping("/process")
     suspend fun process(
         @RequestParam serviceName: String,
@@ -281,37 +291,50 @@ class ExternalSystemController(
         @RequestParam transactionId: String,
         @RequestParam paymentId: String,
     ): ResponseEntity<Response> {
+        val (code, bulkResp) = processInternal(
+            BulkRequest(
+                serviceName,
+                accountName,
+                listOf(Request(transactionId, paymentId))
+            )
+        )
+
+        return ResponseEntity.status(code).body(bulkResp.responses.first())
+    }
+
+    private suspend fun processInternal(
+        bulk: BulkRequest
+    ): Pair<HttpStatus, BulkResponse> {
+        val serviceName = bulk.serviceName
+        val accountName = bulk.accountName
 
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
-            .externalSysRequestSubmitted()
+            .externalSysRequestSubmitted(bulk.requests.size.toDouble())
 
         val start = System.currentTimeMillis()
 
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
 
-        if (Random.nextDouble(0.0, 1.0) < account.slo.accountBlockingProbability) {
-            blockList[accountName] = System.currentTimeMillis() + Random.nextLong(account.slo.upperLimitInvocationMillis * 100)
-        }
+        // todo sukhoa reject if not supports bulk
 
-        val blockUntil = blockList[accountName]
-        if (blockUntil != null) {
-            delay(blockUntil - System.currentTimeMillis())
-            blockList.remove(accountName)
-        }
+        performBlockingLogic(account)
 
-        val totalAmount = invoices.computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }.addAndGet(account.price) // todo sukhoa should be changed for batch
+        val totalAmount = invoices
+            .computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }
+            .addAndGet(account.price * bulk.requests.size)
 
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
-            .externalSysChargeAmountRecord(account.price)
+            .externalSysChargeAmountRecord(account.price * bulk.requests.size)
 
         logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
 
         if (!account.rateLimiter.acquirePermission()) {
             PromMetrics.externalSysDurationRecord(serviceName, accountName, "RL_BREACHED", System.currentTimeMillis() - start)
             networkLatency(account)
-            return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
+//            return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
+            return HttpStatus.INTERNAL_SERVER_ERROR to bulk.failBulk("Rate limit for account: $accountName breached")
         }
 
         try {
@@ -323,50 +346,70 @@ class ExternalSystemController(
                     delay(Random.nextLong(account.slo.upperLimitInvocationMillis))
                 }
 
-                logger.info("[external] - Transaction $transactionId. Duration: $duration")
+                val resp = bulk.requests.map {
+                    val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
 
-                // todo sukhoa following for each event in the batch:
-                val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
-
-                coroutineScope {
-                    launch { // better to make channel + background coroutine that will wake up payments
-                        try {
-                            if (result) { // todo sukhoa we have to unblock it for the error also no?
-                                withTimeout(200) {
-                                    merger.putSecondValueAndWaitForFirst(
-                                        UUID.fromString(paymentId),
-                                        PaymentLogRecord(
-                                            System.currentTimeMillis(),
-                                            PaymentStatus.SUCCESS, totalAmount, UUID.fromString(paymentId)
+                    coroutineScope {
+                        launch { // better to make channel + background coroutine that will wake up payments
+                            try {
+                                if (result) { // todo sukhoa we have to unblock it for the error also no?
+                                    withTimeout(200) {
+                                        merger.putSecondValueAndWaitForFirst(
+                                            UUID.fromString(it.paymentId),
+                                            PaymentLogRecord(
+                                                System.currentTimeMillis(),
+                                                PaymentStatus.SUCCESS, totalAmount, UUID.fromString(it.paymentId)
+                                            )
                                         )
-                                    )
+                                    }
                                 }
-                            }
-                        } catch (ignored: TimeoutCancellationException) { }
+                            } catch (ignored: TimeoutCancellationException) { }
+                        }
                     }
-                }
+
+                    logger.info("[external] - Transaction ${it.transactionId}. Duration: $duration")
+                    Response(it.transactionId, it.paymentId, result)
+                }.toBulkResponse()
+
 
                 PromMetrics.externalSysDurationRecord(serviceName, accountName, "SUCCESS", System.currentTimeMillis() - start)
 
-                return ResponseEntity.ok(Response(result)).also {
+//                return ResponseEntity.ok(Response(result)).also {
+                return (HttpStatus.OK to resp).also {
                     account.window.release()
-                    networkLatency(account) // todo sukhoa once for the batch
+                    networkLatency(account)
                 }
             } else {
                 PromMetrics.externalSysDurationRecord(serviceName, accountName, "WIN_BREACHED", System.currentTimeMillis() - start)
                 networkLatency(account) // todo sukhoa once for the batch
-                return ResponseEntity.status(500).body(
-                    Response(
-                        false,
-                        "Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing"
-                    )
-                )
+//                return ResponseEntity.status(500).body(
+//                    Response(
+//                        false,
+//                        "Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing"
+//                    )
+//                )
+                return HttpStatus.INTERNAL_SERVER_ERROR to bulk.failBulk("Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing")
             }
         } catch (e: Exception) {
-            account.window.release() // todo sukhoa once for the batch
+            account.window.release()
             PromMetrics.externalSysDurationRecord(serviceName, accountName, "UNEXPECTED_ERROR", System.currentTimeMillis() - start)
-            networkLatency(account) // todo sukhoa once for the batch
+            networkLatency(account)
             throw e
+        }
+    }
+
+    private suspend fun performBlockingLogic(account: Account) { //todo sukhoa extension of the blocklist
+        val accountName = account.accountName
+
+        if (Random.nextDouble(0.0, 1.0) < account.slo.accountBlockingProbability) {
+            blockList[accountName] =
+                System.currentTimeMillis() + Random.nextLong(account.slo.upperLimitInvocationMillis * 100)
+        }
+
+        val blockUntil = blockList[accountName]
+        if (blockUntil != null) {
+            delay(blockUntil - System.currentTimeMillis())
+            blockList.remove(accountName)
         }
     }
 
@@ -378,7 +421,29 @@ class ExternalSystemController(
         )
     }
 
-    class Response(
+    data class BulkRequest(
+        val serviceName: String,
+        val accountName: String,
+        val requests: List<Request>
+    )
+
+    data class BulkResponse(
+        val responses: List<Response>
+    )
+    fun List<Response>.toBulkResponse() = BulkResponse(this)
+
+    fun BulkRequest.failBulk(message: String) = BulkResponse(
+        requests.map { Response(it.transactionId, it.paymentId, false, message) }
+    )
+
+    data class Request(
+        val transactionId: String,
+        val paymentId: String,
+    )
+
+    data class Response(
+        val transactionId: String,
+        val paymentId: String,
         val result: Boolean,
         val message: String? = null,
     )

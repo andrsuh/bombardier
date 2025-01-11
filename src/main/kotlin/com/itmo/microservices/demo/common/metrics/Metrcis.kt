@@ -28,8 +28,6 @@ class PromMetrics {
             .name("stage_duration_ok")
             .help("Stage duration.")
             .labelNames(stageLabel, serviceLabel, "result")
-//            .quantile(0.5, 0.05)
-//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
 
@@ -37,32 +35,24 @@ class PromMetrics {
             .name("test_duration")
             .help("Test duration.")
             .labelNames(serviceLabel, "test_duration")
-//            .quantile(0.5, 0.05)
-//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         private val externalSysDuration = Summary.build()
             .name("external_sys_duration")
             .help("External system duration.")
             .labelNames(serviceLabel, "accountName", "outcome")
-//            .quantile(0.5, 0.05)
-//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         private val httpRequestLatent = Summary.build()
             .name("http_request_latent")
             .help("HTTP request latency.")
             .labelNames(serviceLabel, "method")
-//            .quantile(0.5, 0.05)
-//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         private val httpExternalDuration = Summary.build()
             .name("http_external_duration")
             .help("HTTP external duration.")
             .labelNames(serviceLabel, "method", "result")
-//            .quantile(0.5, 0.05)
-//            .quantile(0.95, 0.05)
             .register(promRegistry)
 
         fun testDurationRecord(serviceName: String, testOutcome: String, timeMs: Long) {
@@ -106,16 +96,10 @@ class PromMetrics {
 
 
 class Metrics(private val tags: List<Tag>) {
-    companion object {
 
+    companion object {
         val globalRegistry = io.micrometer.core.instrument.Metrics.globalRegistry
 
-//        private const val externalCallDurationName = "http_external_duration"
-//        private const val timeHttpRequestLatent = "http_request_latent"
-//        private const val stageDurationOkName = "stage_duration_ok"
-//        private const val stageDurationFailName = "stage_duration_fail"
-//        private const val testDurationName = "test_duration"
-//        private const val externalSysDurationName = "external_sys_duration"
         private const val externalSysSubmitName = "external_sys_submit"
         private const val testDurationFailName = "test_duration_fail"
         private const val paymentsAmountName = "payments_amount"
@@ -140,51 +124,12 @@ class Metrics(private val tags: List<Tag>) {
         }
     }
 
-//    fun stageDurationRecord(timeMs: Long, state: TestContinuationType) {
-    //        executor.submit {
-//            if (state.iSFailState()) {
-//                Timer.builder(stageDurationFailName)
-//                    .publishPercentiles(0.95)
-//                    .tags(tags)
-//                    .register(globalRegistry)
-//                    .record(timeMs, TimeUnit.MILLISECONDS)
-//            } else {
-//                Timer.builder(stageDurationOkName)
-//                    .publishPercentiles(0.5)
-//                    .publishPercentiles(0.95)
-//                    .tags(tags)
-//                    .register(globalRegistry)
-//                    .record(timeMs, TimeUnit.MILLISECONDS)
-//            }
-//        }
-//    }
-//
-//    fun testDurationRecord(timeMs: Long) {
-//        executor.submit {
-//            Timer.builder(testDurationName)
-//                .publishPercentiles(0.95)
-//                .tags(tags)
-//                .register(globalRegistry)
-//                .record(timeMs, TimeUnit.MILLISECONDS)
-//        }
-//    }
-//
-//    fun externalSysDurationRecord(timeMs: Long) {
-//        executor.submit {
-//            Timer.builder(externalSysDurationName)
-//                .publishPercentiles(0.95)
-//                .tags(tags)
-//                .register(globalRegistry)
-//                .record(timeMs, TimeUnit.MILLISECONDS)
-//        }
-//    }
-
-    fun externalSysRequestSubmitted() {
+    fun externalSysRequestSubmitted(bulkSize: Double) {
         executor.submit {
             Counter.builder(externalSysSubmitName)
                 .tags(tags)
                 .register(globalRegistry)
-                .increment()
+                .increment(bulkSize)
         }
     }
 
@@ -214,22 +159,4 @@ class Metrics(private val tags: List<Tag>) {
                 .increment(amount.toDouble())
         }
     }
-
-//    fun externalMethodDurationRecord(timeMs: Long) {
-//        executor.submit {
-//            Timer.builder(externalCallDurationName)
-//                .publishPercentiles(0.95)
-//                .tags(tags)
-//                .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
-//        }
-//    }
-
-//    fun timeHttpRequestLatent(timeMs: Long) {
-//        executor.submit {
-//            Timer.builder(timeHttpRequestLatent)
-//                .publishPercentiles(0.95)
-//                .tags(tags)
-//                .register(globalRegistry).record(timeMs, TimeUnit.MILLISECONDS)
-//        }
-//    }
 }

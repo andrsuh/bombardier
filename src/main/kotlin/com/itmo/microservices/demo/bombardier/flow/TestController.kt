@@ -143,7 +143,7 @@ class TestController(
                 while (true) {
                     val testNum = testingFlow.testsStarted.getAndIncrement()
                     if (testNum > params.numberOfTests) {
-                        logger.error("Wrapping up test flow. Number of tests exceeded")
+                        logger.debug("Wrapping up test flow. Number of tests exceeded")
                         runningTests.remove(serviceName)
                         return@launch
                     }
@@ -259,6 +259,6 @@ data class TestParameters(
 //    val parallelProcessesNumber: Int,
     val numberOfTests: Int = 100,
     val ratePerSecond: Int = 10,
-    val testSuccessByThePaymentFact: Boolean = false,
+    val testSuccessByThePaymentFact: Boolean = true, // todo sukhoa effectively it is always true as we don't analyse it on payment order stage
     val stopAfterOrderCreation: Boolean = false,
 )

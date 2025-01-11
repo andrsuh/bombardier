@@ -6,7 +6,6 @@ import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
 import com.itmo.microservices.demo.bombardier.flow.*
 import com.itmo.microservices.demo.bombardier.logging.OrderPaymentNotableEvents.*
-import com.itmo.microservices.demo.bombardier.utils.ConditionAwaiter
 import com.itmo.microservices.demo.common.SuspendableAwaiter
 import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
@@ -15,7 +14,6 @@ import kotlinx.coroutines.*
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 @Component
 class OrderPaymentStage(
@@ -54,6 +52,7 @@ class OrderPaymentStage(
             paymentSubmissionDto.timestamp,
             paymentSubmissionDto.transactionId
         )
+
         var logRecord: PaymentLogRecord? = try {
             withTimeout(Duration.ofSeconds(80).toMillis()) {
                 merger.putFirstValueAndWaitForSecond(paymentSubmissionDto.transactionId, true)
@@ -89,41 +88,42 @@ class OrderPaymentStage(
 //                throw TestStage.TestStageFailedException("Exception instead of silently fail")
 //            }.startWaiting()
 
-        if (!testCtx.testSuccessByThePaymentFact) {
-            val startWaitingPayment = System.currentTimeMillis()
-            eventLog.info(
-                I_START_WAITING_FOR_PAYMENT_RESULT,
-                testCtx.orderId!!,
-                paymentSubmissionDto.transactionId,
-                startWaitingPayment - paymentSubmissionDto.timestamp
-            )
-
-
-            val awaitingTime = 80L + 35L
-
-            ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(30))
-                .condition {
-                    logRecord = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!).paymentHistory
-                        .find { it.transactionId == paymentSubmissionDto.transactionId }
-
-                    logRecord != null
-                }
-                .onFailure {
-                    eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, testCtx.orderId)
-                    if (it != null) {
-                        throw it
-                    }
-                    Metrics
-                        .withTags(
-                            Metrics.serviceLabel to testCtx.serviceName,
-                            paymentOutcome to "FAIL",
-                            paymentFailureReason to "NO_OUTCOME"
-                        )
-                        .paymentFinished()
-
-                    throw TestStage.TestStageFailedException("Exception instead of silently fail")
-                }.startWaiting()
-        }
+        // todo sukhoa following block will never be performed as the current simplified method of the deserialization never returns the payment history
+//        if (!testCtx.testSuccessByThePaymentFact) {
+//            val startWaitingPayment = System.currentTimeMillis()
+//            eventLog.info(
+//                I_START_WAITING_FOR_PAYMENT_RESULT,
+//                testCtx.orderId!!,
+//                paymentSubmissionDto.transactionId,
+//                startWaitingPayment - paymentSubmissionDto.timestamp
+//            )
+//
+//
+//            val awaitingTime = 80L + 35L
+//
+//            ConditionAwaiter.awaitAtMost(awaitingTime, TimeUnit.SECONDS, Duration.ofSeconds(30))
+//                .condition {
+//                    logRecord = externalServiceApi.getOrder(testCtx.userId!!, testCtx.orderId!!).paymentHistory
+//                        .find { it.transactionId == paymentSubmissionDto.transactionId }
+//
+//                    logRecord != null
+//                }
+//                .onFailure {
+//                    eventLogger.error(E_PAYMENT_NO_OUTCOME_FOUND, testCtx.orderId)
+//                    if (it != null) {
+//                        throw it
+//                    }
+//                    Metrics
+//                        .withTags(
+//                            Metrics.serviceLabel to testCtx.serviceName,
+//                            paymentOutcome to "FAIL",
+//                            paymentFailureReason to "NO_OUTCOME"
+//                        )
+//                        .paymentFinished()
+//
+//                    throw TestStage.TestStageFailedException("Exception instead of silently fail")
+//                }.startWaiting()
+//        }
 
         val paymentTimeout = 80L
         val paymentLogRecord = logRecord!!

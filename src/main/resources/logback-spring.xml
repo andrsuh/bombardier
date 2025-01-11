@@ -8,6 +8,7 @@
         <springProperty name="logstashUrl" source="logstash.url"/>§
 
         <logger name="com.itmo" level="WARN"/>
+<!--        <logger name="com.itmo.microservices.demo.externalsys" level="INFO"/>-->
 
         <root level="WARN">
             <appender-ref ref="CONSOLE"/>

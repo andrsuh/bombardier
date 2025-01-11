@@ -39,8 +39,7 @@ class UserManagement(
     fun getRandomUserId(service: String): UUID {
         return try {
             userIdsByService.random()
-        }
-        catch (t: NoSuchElementException) {
+        } catch (t: NoSuchElementException) {
             throw IllegalStateException("There are no users for service $service")
         }
     }

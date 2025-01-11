@@ -78,7 +78,7 @@ class SlowStartRateLimiter(
                     semaphore.release()
                 }.onFailure { th -> logger.error("Failed while releasing permits", th) }
             }
-            logger.warn("Rate limiter ${rateLimiterNum}. Released $permitsToRelease permits")
+            logger.trace("Rate limiter ${rateLimiterNum}. Released $permitsToRelease permits")
 
             if (slowStartOn && currentRate < targetRate) {
                 currentRate = minOf(targetRate, currentRate * 2)
