@@ -143,7 +143,7 @@ class TestController(
                 while (true) {
                     val testNum = testingFlow.testsStarted.getAndIncrement()
                     if (testNum > params.numberOfTests) {
-                        logger.debug("Wrapping up test flow. Number of tests exceeded")
+                        logger.info("Wrapping up test flow. Number of tests exceeded")
                         runningTests.remove(serviceName)
                         return@launch
                     }
