@@ -151,6 +151,15 @@ class Metrics(private val tags: List<Tag>) {
         }
     }
 
+    fun rateLimitDemo(value: Long) {
+        executor.submit {
+            Counter.builder("rate_limit_demo")
+                .tags(tags)
+                .register(globalRegistry)
+                .increment(value.toDouble())
+        }
+    }
+
     fun externalSysChargeAmountRecord(amount: Int) {
         executor.submit {
             Counter.builder(extSysChargeAmountName)

@@ -11,12 +11,18 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-class RateLimiter(
+interface RateLimiter {
+    fun tick(): Boolean
+}
+
+
+class FixedWindowRateLimiter(
     private val rate: Int,
+    private val window: Long,
     private val timeUnit: TimeUnit = TimeUnit.MINUTES,
-) {
+): RateLimiter {
     companion object {
-        private val logger: Logger = LoggerFactory.getLogger(RateLimiter::class.java)
+        private val logger: Logger = LoggerFactory.getLogger(FixedWindowRateLimiter::class.java)
         private val counter = AtomicInteger(0)
         private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     }
@@ -24,22 +30,29 @@ class RateLimiter(
     private var semaphore = Semaphore(rate)
     private val semaphoreNumber = counter.getAndIncrement()
 
-    private val releaseJob = rateLimiterScope.launch {
+    private var start = System.currentTimeMillis()
+    private var nextExpectedWakeUp = start + timeUnit.toMillis(window)
+
+
+        private val releaseJob = rateLimiterScope.launch {
         while (true) {
-            val start = System.currentTimeMillis()
+            start = System.currentTimeMillis()
+            nextExpectedWakeUp = start + timeUnit.toMillis(window)
+
             val permitsToRelease = rate - semaphore.availablePermits
             repeat(permitsToRelease) {
                 runCatching {
                     semaphore.release()
                 }.onFailure { th -> logger.error("Failed while releasing permits", th) }
             }
-            logger.warn("Semaphore ${semaphoreNumber}. Released $permitsToRelease permits")
+            logger.trace("Semaphore ${semaphoreNumber}. Released $permitsToRelease permits")
 
-            delay(timeUnit.toMillis(1) - (System.currentTimeMillis() - start))
+//            logger.warn("Fixed ${nextExpectedWakeUp - System.currentTimeMillis()}.")
+            delay(nextExpectedWakeUp - System.currentTimeMillis())
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 
-    fun tick() = semaphore.tryAcquire()
+    override fun tick() = semaphore.tryAcquire()
 
     suspend fun tickBlocking() = semaphore.acquire()
 }
@@ -48,7 +61,7 @@ class SlowStartRateLimiter(
     private val targetRate: Int,
     private val timeUnit: TimeUnit = TimeUnit.MINUTES,
     private val slowStartOn: Boolean = true,
-) {
+): RateLimiter {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(SlowStartRateLimiter::class.java)
         private val counter = AtomicInteger(0)
@@ -88,25 +101,26 @@ class SlowStartRateLimiter(
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 
-    fun tick() = semaphore.tryAcquire()
+    override fun tick() = semaphore.tryAcquire()
 
     suspend fun tickBlocking() = semaphore.acquire()
 }
 
 class CountingRateLimiter(
     private val rate: Int,
+    private val window: Long,
     private val timeUnit: TimeUnit = TimeUnit.SECONDS
-) {
+): RateLimiter {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(CountingRateLimiter::class.java)
     }
 
-    var internal = RlInternal()
+    var internal = RlInternal(System.currentTimeMillis(), rate)
 
     @Synchronized
-    fun tick(): Boolean {
+    override fun tick(): Boolean {
         val now = System.currentTimeMillis()
-        if (now - internal.segmentStart > timeUnit.toMillis(1)) {
+        if (now - internal.segmentStart >= timeUnit.toMillis(window)) {
             internal = RlInternal(now, rate - 1)
             return true
         } else {

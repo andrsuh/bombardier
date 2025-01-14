@@ -3,17 +3,17 @@ package com.itmo.microservices.demo.externalsys.controller
 import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
 import com.itmo.microservices.demo.bombardier.external.PaymentStatus
 import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
-import com.itmo.microservices.demo.common.SemaphoreOngoingWindow
-import com.itmo.microservices.demo.common.SuspendableAwaiter
-import com.itmo.microservices.demo.common.makeRateLimiter
+import com.itmo.microservices.demo.common.*
 import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
+import com.itmo.microservices.demo.common.metrics.TokenBucketRateLimiter
 import io.github.resilience4j.ratelimiter.RateLimiter
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -213,6 +213,73 @@ class ExternalSystemController(
                 window = SemaphoreOngoingWindow(15),
                 price = (basePrice * 0.3).toInt()
             )
+        }
+    }
+
+    @GetMapping("rl-demo")
+    fun rlDemo() {
+        val start = System.currentTimeMillis()
+
+        val rl1 = makeRateLimiter("1", 100, TimeUnit.SECONDS)
+        val rl2 = FixedWindowRateLimiter(100, 1, TimeUnit.SECONDS)
+        val rl3 = CountingRateLimiter(100, 1, TimeUnit.SECONDS)
+        val rl4 = SlidingWindowRateLimiter(100, Duration.ofSeconds(1))
+        val rl5 = TokenBucketRateLimiter(100, 150, 1, TimeUnit.SECONDS)
+        val rl6 = CompositeRateLimiter(
+            SlidingWindowRateLimiter(1070, Duration.ofSeconds(10)),
+            FixedWindowRateLimiter(170, 1, TimeUnit.SECONDS)
+        )
+
+        var round = 0
+        while (true) {
+            if (System.currentTimeMillis() - start > 120_000) {
+                break
+            }
+
+            val upper = Random.nextLong(85, 120)
+            Metrics.withTags("rl_type" to "no_limit").rateLimitDemo(upper)
+
+            var rl1Allowed = 0
+            var rl2Allowed = 0
+            var rl3Allowed = 0
+            var rl4Allowed = 0
+            var rl5Allowed = 0
+            var rl6Allowed = 0
+
+            for (i in 0 until upper) {
+                val rl1Resp = rl1.acquirePermission()
+                if (rl1Resp) {
+                    Metrics.withTags("rl_type" to "res4j").rateLimitDemo(1)
+                    rl1Allowed++
+                }
+                val rl2Resp = rl2.tick()
+                if (rl2Resp) {
+                    Metrics.withTags("rl_type" to "fixed").rateLimitDemo(1)
+                    rl2Allowed++
+                }
+                val rl3Resp = rl3.tick()
+                if (rl3Resp) {
+                    Metrics.withTags("rl_type" to "counting").rateLimitDemo(1)
+                    rl3Allowed++
+                }
+                val rl4Resp = rl4.tick()
+                if (rl4Resp) {
+                    Metrics.withTags("rl_type" to "sliding").rateLimitDemo(1)
+                    rl4Allowed++
+                }
+                val rl5Resp = rl5.tick()
+                if (rl5Resp) {
+                    Metrics.withTags("rl_type" to "token_bucket").rateLimitDemo(1)
+                    rl5Allowed++
+                }
+                val rl6Resp = rl6.tick()
+                if (rl6Resp) {
+                    Metrics.withTags("rl_type" to "composite_1").rateLimitDemo(1)
+                    rl6Allowed++
+                }
+            }
+            println("Round ${round++}: incoming: $upper,  res4j: $rl1Allowed,  fixed: $rl2Allowed,  counting: $rl3Allowed,  sliding: $rl4Allowed,  token_bucket: $rl5Allowed, composite_1: $rl6Allowed")
+            Thread.sleep(1000 - (System.currentTimeMillis() % 1000))
         }
     }
 
