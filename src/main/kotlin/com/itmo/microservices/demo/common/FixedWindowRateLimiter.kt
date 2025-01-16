@@ -24,9 +24,9 @@ class FixedWindowRateLimiter(
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(FixedWindowRateLimiter::class.java)
         private val counter = AtomicInteger(0)
-        private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     }
 
+    private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     private var semaphore = Semaphore(rate)
     private val semaphoreNumber = counter.getAndIncrement()
 
@@ -34,7 +34,7 @@ class FixedWindowRateLimiter(
     private var nextExpectedWakeUp = start + timeUnit.toMillis(window)
 
 
-        private val releaseJob = rateLimiterScope.launch {
+    private val releaseJob = rateLimiterScope.launch {
         while (true) {
             start = System.currentTimeMillis()
             nextExpectedWakeUp = start + timeUnit.toMillis(window)

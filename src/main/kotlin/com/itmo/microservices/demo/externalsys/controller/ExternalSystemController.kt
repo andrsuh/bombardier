@@ -6,7 +6,7 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServic
 import com.itmo.microservices.demo.common.*
 import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
-import com.itmo.microservices.demo.common.metrics.TokenBucketRateLimiter
+import com.itmo.microservices.demo.common.TokenBucketRateLimiter
 import io.github.resilience4j.ratelimiter.RateLimiter
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
@@ -229,6 +229,8 @@ class ExternalSystemController(
             SlidingWindowRateLimiter(1070, Duration.ofSeconds(10)),
             FixedWindowRateLimiter(170, 1, TimeUnit.SECONDS)
         )
+        val rl7 = LeakingBucketRateLimiter(10, Duration.ofMillis(100), 120)
+        println("Round,incoming,res4j,fixed,counting,sliding,token_bucket,composite_1")
 
         var round = 0
         while (true) {
@@ -245,8 +247,10 @@ class ExternalSystemController(
             var rl4Allowed = 0
             var rl5Allowed = 0
             var rl6Allowed = 0
+            var rl7Allowed = 0
 
             for (i in 0 until upper) {
+//                sleepIfNeeded()
                 val rl1Resp = rl1.acquirePermission()
                 if (rl1Resp) {
                     Metrics.withTags("rl_type" to "res4j").rateLimitDemo(1)
@@ -277,9 +281,21 @@ class ExternalSystemController(
                     Metrics.withTags("rl_type" to "composite_1").rateLimitDemo(1)
                     rl6Allowed++
                 }
+                val rl7Resp = rl7.tick()
+                if (rl7Resp) {
+                    Metrics.withTags("rl_type" to "leaking_bucket").rateLimitDemo(1)
+                    rl7Allowed++
+                }
             }
-            println("Round ${round++}: incoming: $upper,  res4j: $rl1Allowed,  fixed: $rl2Allowed,  counting: $rl3Allowed,  sliding: $rl4Allowed,  token_bucket: $rl5Allowed, composite_1: $rl6Allowed")
+            println("Round ${round++}: incoming: $upper,  res4j: $rl1Allowed,  fixed: $rl2Allowed,  counting: $rl3Allowed,  sliding: $rl4Allowed,  token_bucket: $rl5Allowed, composite_1: $rl6Allowed, leaking_bucket: $rl7Allowed,")
+//            println("${round++},$upper,$rl1Allowed,$rl2Allowed,$rl3Allowed,$rl4Allowed,$rl5Allowed,$rl6Allowed")
             Thread.sleep(1000 - (System.currentTimeMillis() % 1000))
+        }
+    }
+
+    private fun sleepIfNeeded() {
+        if (Random.nextDouble(0.0, 1.0) < 0.2) {
+            Thread.sleep(Random.nextLong(3, 8))
         }
     }
 

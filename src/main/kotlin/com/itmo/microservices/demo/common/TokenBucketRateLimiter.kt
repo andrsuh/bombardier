@@ -1,6 +1,5 @@
-package com.itmo.microservices.demo.common.metrics
+package com.itmo.microservices.demo.common
 
-import com.itmo.microservices.demo.common.RateLimiter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
@@ -19,8 +18,9 @@ class TokenBucketRateLimiter(
 ): RateLimiter {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(TokenBucketRateLimiter::class.java)
-        private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     }
+
+    private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
 
     private var bucket: AtomicInteger = AtomicInteger(0)
     private var start = System.currentTimeMillis()
@@ -34,7 +34,6 @@ class TokenBucketRateLimiter(
             bucket.get().let { cur ->
                 bucket.addAndGet(if (cur + rate > bucketMaxCapacity) bucketMaxCapacity - cur else rate)
             }
-//            delay(timeUnit.toMillis(window) - (System.currentTimeMillis() - start) - error)
             delay(nextExpectedWakeUp - System.currentTimeMillis())
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
