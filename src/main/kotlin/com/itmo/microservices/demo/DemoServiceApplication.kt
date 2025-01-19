@@ -16,13 +16,6 @@ import java.util.*
 @Configuration
 class DemoServiceApplication {
 
-//    @Bean
-//    fun tomcatConnectorCustomizer(): TomcatConnectorCustomizer {
-//        return TomcatConnectorCustomizer {
-//            (it.protocolHandler.findUpgradeProtocols().get(0) as Http2Protocol).maxConcurrentStreams = 10_000_000
-//        }
-//    }
-
     @Bean
     fun jettyServerCustomizer(): JettyServletWebServerFactory {
         val jettyServletWebServerFactory = JettyServletWebServerFactory()
@@ -34,6 +27,7 @@ class DemoServiceApplication {
         jettyServletWebServerFactory.serverCustomizers.add(c)
         return jettyServletWebServerFactory
     }
+
     @Bean
     fun merger(): SuspendableAwaiter<UUID, Boolean, PaymentLogRecord> {
         return SuspendableAwaiter()

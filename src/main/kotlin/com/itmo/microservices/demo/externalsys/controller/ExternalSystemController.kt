@@ -29,7 +29,6 @@ class ExternalSystemController(
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
-        const val rateLimitDefault = 1
     }
 
     private val invoices = ConcurrentHashMap<String, AtomicInteger>()
@@ -37,72 +36,6 @@ class ExternalSystemController(
 
     private val blockList = ConcurrentHashMap<String, Long>()
 
-// testing accounts, old
-//    @PostConstruct
-//    fun init() {
-//        services.storage.forEach { service ->
-//            // default 1 -> almost no restrictions
-//            val basePrice = 100
-//            val accName1 = "default-1"
-//            accounts["${service.name}-$accName1"] = Account(
-//                service.name,
-//                accName1,
-//                null,
-//                slo = Slo(upperLimitInvocationMillis = 30),
-//                rateLimiter = makeRateLimiter(accName1, 2100, TimeUnit.SECONDS),
-//                window = SemaphoreOngoingWindow(20000),
-//                price = basePrice
-//            )
-//
-//            // default 2
-//            val accName2 = "default-2"
-//            accounts["${service.name}-$accName2"] = Account(
-//                service.name,
-//                accName2,
-//                null,
-//                slo = Slo(upperLimitInvocationMillis = 2_000),
-//                rateLimiter = makeRateLimiter(accName2, 60, TimeUnit.SECONDS),
-//                window = SemaphoreOngoingWindow(130),
-//                price = (basePrice * 0.7).toInt()
-//            )
-//
-//            // default 3
-//            val accName3 = "default-3"
-//            accounts["${service.name}-$accName3"] = Account(
-//                service.name,
-//                accName3,
-//                null,
-//                slo = Slo(upperLimitInvocationMillis = 3_000),
-//                rateLimiter = makeRateLimiter(accName3, 10, TimeUnit.SECONDS),
-//                window = SemaphoreOngoingWindow(35),
-//                price = (basePrice * 0.4).toInt()
-//            )
-//
-//            // default 4 -> like default 3, but window size is 15
-//            val accName4 = "default-4"
-//            accounts["${service.name}-$accName4"] = Account(
-//                service.name,
-//                accName4,
-//                null,
-//                slo = Slo(upperLimitInvocationMillis = 3_000),
-//                rateLimiter = makeRateLimiter(accName4, 10, TimeUnit.SECONDS),
-//                window = SemaphoreOngoingWindow(15),
-//                price = (basePrice * 0.3).toInt()
-//            )
-//
-//            // default 5
-//            val accName5 = "default-5"
-//            accounts["${service.name}-$accName5"] = Account(
-//                service.name,
-//                accName5,
-//                null,
-//                slo = Slo(upperLimitInvocationMillis = 10_000),
-//                rateLimiter = makeRateLimiter(accName5, 10, TimeUnit.SECONDS),
-//                window = SemaphoreOngoingWindow(8),
-//                price = (basePrice * 0.3).toInt()
-//            )
-//        }
-//    }
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
@@ -111,9 +44,8 @@ class ExternalSystemController(
                 service.name,
                 testAcc,
                 null,
+                speedLimits = SpeedLimits(100_000, 100_000_000),
                 slo = Slo(upperLimitInvocationMillis = 2),
-                rateLimiter = makeRateLimiter(testAcc, 100_000, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(1_000_000),
                 price = 0
             )
 
@@ -125,8 +57,7 @@ class ExternalSystemController(
                 accName1,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 2),
-                rateLimiter = makeRateLimiter(accName1, 3000, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(500000),
+                speedLimits = SpeedLimits(3000, 50_000),
                 price = basePrice
             )
 
@@ -137,8 +68,7 @@ class ExternalSystemController(
                 accName2,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName2, 10, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(100),
+                speedLimits = SpeedLimits(10, 100),
                 price = (basePrice * 0.7).toInt()
             )
 
@@ -149,8 +79,7 @@ class ExternalSystemController(
                 accName3,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 16_000),
-                rateLimiter = makeRateLimiter(accName3, 2, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(32),
+                speedLimits = SpeedLimits(2, 32),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -161,8 +90,7 @@ class ExternalSystemController(
                 accName4,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 9_000),
-                rateLimiter = makeRateLimiter(accName4, 5, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(15),
+                speedLimits = SpeedLimits(5, 15),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -173,8 +101,7 @@ class ExternalSystemController(
                 accName5,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000),
-                rateLimiter = makeRateLimiter(accName5, 10, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(8),
+                speedLimits = SpeedLimits(10, 8),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -185,8 +112,7 @@ class ExternalSystemController(
                 accName6,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1_000),
-                rateLimiter = makeRateLimiter(accName6, 30, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(35),
+                speedLimits = SpeedLimits(30, 35),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -197,8 +123,7 @@ class ExternalSystemController(
                 accName7,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000, accountBlockingProbability = 0.005),
-                rateLimiter = makeRateLimiter(accName7, 7, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(10),
+                speedLimits = SpeedLimits(7, 10),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -209,12 +134,34 @@ class ExternalSystemController(
                 accName8,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 4_000, errorResponseProbability = 0.07),
-                rateLimiter = makeRateLimiter(accName8, 20, TimeUnit.SECONDS),
-                window = SemaphoreOngoingWindow(15),
+                speedLimits = SpeedLimits(20, 15),
                 price = (basePrice * 0.3).toInt()
             )
         }
     }
+
+    @GetMapping("/accounts")
+    fun getAccounts(@RequestParam serviceName: String): List<AccountProperties> {
+        return accounts.values.map {
+            AccountProperties(
+                serviceName,
+                it.accountName,
+                it.speedLimits.win,
+                it.speedLimits.rps,
+                it.price,
+                Duration.ofMillis(it.slo.upperLimitInvocationMillis / 2),
+            )
+        }
+    }
+
+    data class AccountProperties(
+        val serviceName: String,
+        val accountName: String,
+        val parallelRequests: Int,
+        val rateLimitPerSec: Int,
+        val price: Int,
+        val averageProcessingTime: Duration = Duration.ofSeconds(11),
+    )
 
     @GetMapping("rl-demo")
     fun rlDemo() {
@@ -301,21 +248,12 @@ class ExternalSystemController(
 
     @PostMapping("/account")
     fun createAccount(@RequestBody request: AccountDto) {
-        val rateLimiter = makeRateLimiter(
-            "rateLimiter:${request.accountName}",
-            request.slo.tpsec ?: request.slo.tpmin ?: rateLimitDefault,
-            if (request.slo.tpsec != null) TimeUnit.SECONDS else TimeUnit.MINUTES
-        )
-
-        val window = SemaphoreOngoingWindow(request.slo.winSize)
-
         accounts[request.accountName] = Account(
             request.serviceName,
             request.accountName,
             request.callbackPath,
+            speedLimits = SpeedLimits(request.slo.tps, request.slo.win),
             slo = Slo(request.slo.upperLimitInvocationMillis),
-            rateLimiter = rateLimiter,
-            window = window,
             price = request.price
         )
     }
@@ -330,9 +268,8 @@ class ExternalSystemController(
 
     data class SloDto(
         val upperLimitInvocationMillis: Long = 10_000,
-        val tpsec: Int? = null,
-        val tpmin: Int? = null,
-        val winSize: Int = 16,
+        val tps: Int = 5,
+        val win: Int = 15,
     )
 
     data class Account(
@@ -340,10 +277,16 @@ class ExternalSystemController(
         val accountName: String,
         val callbackPath: String?,
         val slo: Slo = Slo(),
+        val speedLimits: SpeedLimits,
         val network: Network = Network(),
-        val rateLimiter: RateLimiter,
-        val window: SemaphoreOngoingWindow,
         val price: Int,
+        val rateLimiter: RateLimiter = makeRateLimiter(accountName, speedLimits.rps, TimeUnit.SECONDS),
+        val window: SemaphoreOngoingWindow = SemaphoreOngoingWindow(speedLimits.win),
+    )
+
+    data class SpeedLimits(
+        val rps: Int = 5,
+        val win: Int = 15,
     )
 
     data class Network(
@@ -414,7 +357,12 @@ class ExternalSystemController(
         logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
 
         if (!account.rateLimiter.acquirePermission()) {
-            PromMetrics.externalSysDurationRecord(serviceName, accountName, "RL_BREACHED", System.currentTimeMillis() - start)
+            PromMetrics.externalSysDurationRecord(
+                serviceName,
+                accountName,
+                "RL_BREACHED",
+                System.currentTimeMillis() - start
+            )
             networkLatency(account)
 //            return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
             return HttpStatus.INTERNAL_SERVER_ERROR to bulk.failBulk("Rate limit for account: $accountName breached")
@@ -446,7 +394,8 @@ class ExternalSystemController(
                                         )
                                     }
                                 }
-                            } catch (ignored: TimeoutCancellationException) { }
+                            } catch (ignored: TimeoutCancellationException) {
+                            }
                         }
                     }
 
@@ -455,7 +404,12 @@ class ExternalSystemController(
                 }.toBulkResponse()
 
 
-                PromMetrics.externalSysDurationRecord(serviceName, accountName, "SUCCESS", System.currentTimeMillis() - start)
+                PromMetrics.externalSysDurationRecord(
+                    serviceName,
+                    accountName,
+                    "SUCCESS",
+                    System.currentTimeMillis() - start
+                )
 
 //                return ResponseEntity.ok(Response(result)).also {
                 return (HttpStatus.OK to resp).also {
@@ -463,7 +417,12 @@ class ExternalSystemController(
                     networkLatency(account)
                 }
             } else {
-                PromMetrics.externalSysDurationRecord(serviceName, accountName, "WIN_BREACHED", System.currentTimeMillis() - start)
+                PromMetrics.externalSysDurationRecord(
+                    serviceName,
+                    accountName,
+                    "WIN_BREACHED",
+                    System.currentTimeMillis() - start
+                )
                 networkLatency(account) // todo sukhoa once for the batch
 //                return ResponseEntity.status(500).body(
 //                    Response(
@@ -475,7 +434,12 @@ class ExternalSystemController(
             }
         } catch (e: Exception) {
             account.window.release()
-            PromMetrics.externalSysDurationRecord(serviceName, accountName, "UNEXPECTED_ERROR", System.currentTimeMillis() - start)
+            PromMetrics.externalSysDurationRecord(
+                serviceName,
+                accountName,
+                "UNEXPECTED_ERROR",
+                System.currentTimeMillis() - start
+            )
             networkLatency(account)
             throw e
         }
@@ -498,9 +462,11 @@ class ExternalSystemController(
 
     suspend fun networkLatency(account: Account) {
         if (account.network.noiseUpperBoundMillis == 0L) return
-        return delay(Random.nextLong(
-            account.network.noiseLowerBoundMillis,
-            account.network.noiseUpperBoundMillis)
+        return delay(
+            Random.nextLong(
+                account.network.noiseLowerBoundMillis,
+                account.network.noiseUpperBoundMillis
+            )
         )
     }
 
@@ -513,6 +479,7 @@ class ExternalSystemController(
     data class BulkResponse(
         val responses: List<Response>
     )
+
     fun List<Response>.toBulkResponse() = BulkResponse(this)
 
     fun BulkRequest.failBulk(message: String) = BulkResponse(
