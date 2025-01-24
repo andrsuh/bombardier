@@ -72,7 +72,7 @@ class ExternalSystemController(
                 price = (basePrice * 0.7).toInt()
             )
 
-            // default 3
+            // acc 3
             val accName3 = "acc-3"
             accounts["${service.name}-$accName3"] = Account(
                 service.name,
@@ -94,8 +94,8 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            // default 5
-            val accName5 = "default-5"
+            // acc 5
+            val accName5 = "acc-5"
             accounts["${service.name}-$accName5"] = Account(
                 service.name,
                 accName5,
@@ -316,12 +316,13 @@ class ExternalSystemController(
         @RequestParam accountName: String,
         @RequestParam transactionId: String,
         @RequestParam paymentId: String,
+        @RequestParam amount: Int,
     ): ResponseEntity<Response> {
         val (code, bulkResp) = processInternal(
             BulkRequest(
                 serviceName,
                 accountName,
-                listOf(Request(transactionId, paymentId))
+                listOf(Request(transactionId, paymentId, amount))
             )
         )
 
@@ -346,15 +347,15 @@ class ExternalSystemController(
 
         performBlockingLogic(account)
 
-        val totalAmount = invoices
-            .computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }
-            .addAndGet(account.price * bulk.requests.size)
+//        val totalAmount = invoices
+//            .computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }
+//            .addAndGet(account.price * bulk.requests.size)
 
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysChargeAmountRecord(account.price * bulk.requests.size)
 
-        logger.warn("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
+        logger.warn("Account $accountName charged ${account.price} from service ${account.serviceName}.")
 
         if (!account.rateLimiter.acquirePermission()) {
             PromMetrics.externalSysDurationRecord(
@@ -389,7 +390,7 @@ class ExternalSystemController(
                                             UUID.fromString(it.paymentId),
                                             PaymentLogRecord(
                                                 System.currentTimeMillis(),
-                                                PaymentStatus.SUCCESS, totalAmount, UUID.fromString(it.paymentId)
+                                                PaymentStatus.SUCCESS, it.amount, UUID.fromString(it.paymentId)
                                             )
                                         )
                                     }
@@ -489,6 +490,7 @@ class ExternalSystemController(
     data class Request(
         val transactionId: String,
         val paymentId: String,
+        val amount: Int,
     )
 
     data class Response(
