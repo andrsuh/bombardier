@@ -34,7 +34,7 @@ class PromMetrics {
         private val testDuration = Summary.build()
             .name("test_duration")
             .help("Test duration.")
-            .labelNames(serviceLabel, "test_duration")
+            .labelNames(serviceLabel, "testOutcome")
             .register(promRegistry)
 
         private val externalSysDuration = Summary.build()

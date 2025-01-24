@@ -25,7 +25,7 @@ class OrderCreationStage : TestStage {
     ): TestStage.TestContinuationType {
         eventLogger = EventLoggerWrapper(eventLog, testCtx.serviceName)
 
-        val price = Random.nextInt(1, 15) * Random.nextInt(10, 150)
+        val price = Random.nextInt(60, 750)
 
         val order = externalServiceApi.createOrder(testCtx.testImmutableInfo.userId, price)
         eventLogger.info(I_ORDER_CREATED, order.id)

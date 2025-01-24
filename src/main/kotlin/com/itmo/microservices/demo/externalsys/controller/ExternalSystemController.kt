@@ -73,12 +73,12 @@ class ExternalSystemController(
             )
 
             // default 3
-            val accName3 = "default-3"
+            val accName3 = "acc-3"
             accounts["${service.name}-$accName3"] = Account(
                 service.name,
                 accName3,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 16_000),
+                slo = Slo(upperLimitInvocationMillis = 4_000),
                 speedLimits = SpeedLimits(2, 32),
                 price = (basePrice * 0.3).toInt()
             )
@@ -354,7 +354,7 @@ class ExternalSystemController(
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysChargeAmountRecord(account.price * bulk.requests.size)
 
-        logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
+        logger.warn("Account $accountName charged ${account.price} from service ${account.serviceName}. Total amount: $totalAmount")
 
         if (!account.rateLimiter.acquirePermission()) {
             PromMetrics.externalSysDurationRecord(
