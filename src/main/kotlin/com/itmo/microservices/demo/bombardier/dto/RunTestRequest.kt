@@ -1,8 +1,8 @@
 package com.itmo.microservices.demo.bombardier.dto
 
 data class RunTestRequest(
-    val serviceName: String,
-    val usersCount: Int,
+    val serviceName: String = "onlineStore",
+    val usersCount: Int = 1,
     val testCount: Int,
     val ratePerSecond: Int,
     val testSuccessByThePaymentFact: Boolean = false,

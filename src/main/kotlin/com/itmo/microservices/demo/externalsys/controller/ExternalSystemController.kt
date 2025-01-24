@@ -177,7 +177,7 @@ class ExternalSystemController(
             FixedWindowRateLimiter(170, 1, TimeUnit.SECONDS)
         )
         val rl7 = LeakingBucketRateLimiter(10, Duration.ofMillis(100), 120)
-        println("Round,incoming,res4j,fixed,counting,sliding,token_bucket,composite_1")
+        println("incoming,res4j,fixed,counting,sliding,token_bucket,composite_1,leaking_bucket")
 
         var round = 0
         while (true) {
@@ -234,8 +234,8 @@ class ExternalSystemController(
                     rl7Allowed++
                 }
             }
-            println("Round ${round++}: incoming: $upper,  res4j: $rl1Allowed,  fixed: $rl2Allowed,  counting: $rl3Allowed,  sliding: $rl4Allowed,  token_bucket: $rl5Allowed, composite_1: $rl6Allowed, leaking_bucket: $rl7Allowed,")
-//            println("${round++},$upper,$rl1Allowed,$rl2Allowed,$rl3Allowed,$rl4Allowed,$rl5Allowed,$rl6Allowed")
+//            println("Round ${round++}: incoming: $upper,  res4j: $rl1Allowed,  fixed: $rl2Allowed,  counting: $rl3Allowed,  sliding: $rl4Allowed,  token_bucket: $rl5Allowed, composite_1: $rl6Allowed, leaking_bucket: $rl7Allowed,")
+            println("$upper,$rl1Allowed,$rl2Allowed,$rl3Allowed,$rl4Allowed,$rl5Allowed,$rl6Allowed,$rl7Allowed")
             Thread.sleep(1000 - (System.currentTimeMillis() % 1000))
         }
     }

@@ -130,7 +130,7 @@ class TestController(
 
         val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
 
-        for (i in 1..200_000) {
+        for (i in 1..250_000) {
             val testContext = TestContext(
                 serviceName = serviceName,
                 launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
@@ -255,8 +255,7 @@ data class PaymentDetails(
 
 data class TestParameters(
     val serviceName: String,
-    val numberOfUsers: Int,
-//    val parallelProcessesNumber: Int,
+    val numberOfUsers: Int = 1,
     val numberOfTests: Int = 100,
     val ratePerSecond: Int = 10,
     val testSuccessByThePaymentFact: Boolean = true, // todo sukhoa effectively it is always true as we don't analyse it on payment order stage
