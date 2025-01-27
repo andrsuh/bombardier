@@ -116,25 +116,110 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            // default 7 fullBlockingProbability is 0.01
-            val accName7 = "default-7"
+            val accName7 = "acc-7"
             accounts["${service.name}-$accName7"] = Account(
                 service.name,
                 accName7,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000, accountBlockingProbability = 0.005),
-                speedLimits = SpeedLimits(7, 10),
+                slo = Slo(upperLimitInvocationMillis = 100, timeLimitsBreachingProbability = 0.05, timeLimitsBreachingMinTime = Duration.ofMillis(9500), timeLimitsBreachingMaxTime = Duration.ofMillis(9800)),
+                network = Network(40, 90),
+                speedLimits = SpeedLimits(5, 25),
                 price = (basePrice * 0.3).toInt()
             )
 
             // default 8
-            val accName8 = "default-8"
+            val accName8 = "acc-8"
             accounts["${service.name}-$accName8"] = Account(
                 service.name,
                 accName8,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 4_000, errorResponseProbability = 0.07),
-                speedLimits = SpeedLimits(20, 15),
+                slo = Slo(upperLimitInvocationMillis = 1800, errorResponseProbability = 0.1),
+                network = Network(40, 90),
+                speedLimits = SpeedLimits(8, 40),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName9 = "acc-9"
+            accounts["${service.name}-$accName9"] = Account(
+                service.name,
+                accName9,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 1000),
+                network = Network(15, 40),
+                speedLimits = SpeedLimits(120, 50),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName10 = "acc-10"
+            accounts["${service.name}-$accName10"] = Account(
+                service.name,
+                accName10,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 1000),
+                network = Network(15, 40),
+                speedLimits = SpeedLimits(480, 200),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName11 = "acc-11"
+            accounts["${service.name}-$accName11"] = Account(
+                service.name,
+                accName11,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 2000),
+                network = Network(15, 40),
+                speedLimits = SpeedLimits(480, 400),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName12 = "acc-12"
+            accounts["${service.name}-$accName12"] = Account(
+                service.name,
+                accName12,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 20_000),
+                speedLimits = SpeedLimits(1100, 20_000),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName13 = "acc-13"
+            accounts["${service.name}-$accName13"] = Account(
+                service.name,
+                accName13,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 20),
+                speedLimits = SpeedLimits(5000, 2000),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName14 = "acc-14"
+            accounts["${service.name}-$accName14"] = Account(
+                service.name,
+                accName14,
+                null,
+                slo = Slo(
+                    upperLimitInvocationMillis = 1000,
+                    errorResponseProbability = 0.01
+                ),
+                network = Network(0, 15),
+                speedLimits = SpeedLimits(500, 1500),
+                price = (basePrice * 0.45).toInt()
+            )
+
+            val accName15 = "acc-15"
+            accounts["${service.name}-$accName15"] = Account(
+                service.name,
+                accName15,
+                null,
+                network = Network(15, 40),
+                slo = Slo(
+                    upperLimitInvocationMillis = 2_000,
+                    errorResponseProbability = 0.07,
+                    timeLimitsBreachingProbability = 0.001,
+                    timeLimitsBreachingMinTime = Duration.ofSeconds(5),
+                    timeLimitsBreachingMaxTime = Duration.ofSeconds(15)
+                ),
+                speedLimits = SpeedLimits(200, 1500),
                 price = (basePrice * 0.3).toInt()
             )
         }
@@ -297,7 +382,10 @@ class ExternalSystemController(
     data class Slo(
         val upperLimitInvocationMillis: Long = 10_000,
         val accountBlockingProbability: Double = 0.0,
+        val accountBlockingMaxTime: Duration = Duration.ofMillis(1000),
         val timeLimitsBreachingProbability: Double = 0.0,
+        val timeLimitsBreachingMinTime: Duration = Duration.ofMillis(0),
+        val timeLimitsBreachingMaxTime: Duration = Duration.ofMillis(1000),
         val errorResponseProbability: Double = -1.0,
     )
 
@@ -343,39 +431,36 @@ class ExternalSystemController(
 
         val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
 
-        // todo sukhoa reject if not supports bulk
-
-        performBlockingLogic(account)
-
-//        val totalAmount = invoices
-//            .computeIfAbsent("$serviceName-$accountName") { AtomicInteger() }
-//            .addAndGet(account.price * bulk.requests.size)
-
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysChargeAmountRecord(account.price * bulk.requests.size)
 
-        logger.warn("Account $accountName charged ${account.price} from service ${account.serviceName}.")
+        logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}.")
 
+        // if we perform blocking logic before RL acquisition, we will non-intentionally break the speed limits
         if (!account.rateLimiter.acquirePermission()) {
+            performBlockingLogic(account)
+            networkLatency(account)
+
             PromMetrics.externalSysDurationRecord(
                 serviceName,
                 accountName,
                 "RL_BREACHED",
                 System.currentTimeMillis() - start
             )
-            networkLatency(account)
 //            return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
             return HttpStatus.INTERNAL_SERVER_ERROR to bulk.failBulk("Rate limit for account: $accountName breached")
         }
 
         try {
             if (account.window.tryAcquire()) {
+                performBlockingLogic(account)
                 val duration = Random.nextLong(0, account.slo.upperLimitInvocationMillis)
                 delay(duration)
 
                 if (Random.nextDouble(0.0, 1.0) < account.slo.timeLimitsBreachingProbability) {
-                    delay(Random.nextLong(account.slo.upperLimitInvocationMillis))
+                    account.window.release()
+                    delay(Random.nextLong(account.slo.timeLimitsBreachingMinTime.toMillis(), account.slo.timeLimitsBreachingMaxTime.toMillis()))
                 }
 
                 val resp = bulk.requests.map {
@@ -405,26 +490,27 @@ class ExternalSystemController(
                 }.toBulkResponse()
 
 
-                PromMetrics.externalSysDurationRecord(
-                    serviceName,
-                    accountName,
-                    "SUCCESS",
-                    System.currentTimeMillis() - start
-                )
-
 //                return ResponseEntity.ok(Response(result)).also {
                 return (HttpStatus.OK to resp).also {
                     account.window.release()
                     networkLatency(account)
+
+                    PromMetrics.externalSysDurationRecord(
+                        serviceName,
+                        accountName,
+                        "SUCCESS",
+                        System.currentTimeMillis() - start
+                    )
                 }
             } else {
+                performBlockingLogic(account)
+                networkLatency(account) // todo sukhoa once for the batch
                 PromMetrics.externalSysDurationRecord(
                     serviceName,
                     accountName,
                     "WIN_BREACHED",
                     System.currentTimeMillis() - start
                 )
-                networkLatency(account) // todo sukhoa once for the batch
 //                return ResponseEntity.status(500).body(
 //                    Response(
 //                        false,
@@ -435,13 +521,13 @@ class ExternalSystemController(
             }
         } catch (e: Exception) {
             account.window.release()
+            networkLatency(account)
             PromMetrics.externalSysDurationRecord(
                 serviceName,
                 accountName,
                 "UNEXPECTED_ERROR",
                 System.currentTimeMillis() - start
             )
-            networkLatency(account)
             throw e
         }
     }
@@ -451,11 +537,12 @@ class ExternalSystemController(
 
         if (Random.nextDouble(0.0, 1.0) < account.slo.accountBlockingProbability) {
             blockList[accountName] =
-                System.currentTimeMillis() + Random.nextLong(account.slo.upperLimitInvocationMillis * 100)
+                System.currentTimeMillis() + Random.nextLong(account.slo.accountBlockingMaxTime.toMillis())
         }
 
         val blockUntil = blockList[accountName]
         if (blockUntil != null) {
+            account.window.release()
             delay(blockUntil - System.currentTimeMillis())
             blockList.remove(accountName)
         }

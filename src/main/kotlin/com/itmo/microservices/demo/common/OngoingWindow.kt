@@ -45,5 +45,5 @@ class SemaphoreOngoingWindow(
         return window.tryAcquire()
     }
 
-    fun release() = window.release()
+    fun release() = kotlin.runCatching { window.release() }
 }

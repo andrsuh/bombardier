@@ -6,7 +6,7 @@ import com.itmo.microservices.demo.common.logging.lib.logging.NotableEvent
 enum class OrderPaymentNotableEvents(private val template: String) : NotableEvent {
 
     I_PAYMENT_STARTED("Payment started for order {}"),
-    E_SUBMISSION_TIMEOUT_EXCEEDED("Payment submission is started for order: {} but hasn't finished withing {} sec"),
+    E_SUBMISSION_TIMEOUT_EXCEEDED("Payment submission is started for order: {} but hasn't finished withing {} millis"),
     I_STARTED_PAYMENT("Payment submission is started for order: {} at {}, tx: {}"),
     I_START_WAITING_FOR_PAYMENT_RESULT("Start waiting for order: {}, tx: {} result. Duration: {}"),
     E_PAYMENT_NO_OUTCOME_FOUND("Payment no outcome found: {}"),

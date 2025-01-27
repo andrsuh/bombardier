@@ -10,6 +10,10 @@ class EventLoggerWrapper(var eventLogger: EventLogger, var serviceName: String) 
         eventLogger.info(append(testServiceFiledName, serviceName), event, *payload)
     }
 
+    fun warn(event: NotableEvent, vararg payload: Any?) {
+        eventLogger.warn(append(testServiceFiledName, serviceName), event, *payload)
+    }
+
     fun error(event: NotableEvent, vararg payload: Any?) {
         eventLogger.error(append(testServiceFiledName, serviceName), event, *payload)
     }

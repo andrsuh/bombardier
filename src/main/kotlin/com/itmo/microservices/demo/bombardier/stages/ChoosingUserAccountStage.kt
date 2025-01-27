@@ -29,7 +29,7 @@ class ChoosingUserAccountStage : TestStage {
         testCtx.userId = chosenUserId
         testCtx.userId = chosenUserId
         testCtx.testImmutableInfo.userId = chosenUserId
-        eventLogger.info(UserNotableEvents.I_USER_CHOSEN, chosenUserId)
+//        eventLogger.info(UserNotableEvents.I_USER_CHOSEN, chosenUserId)
         return TestStage.TestContinuationType.CONTINUE
     }
 }

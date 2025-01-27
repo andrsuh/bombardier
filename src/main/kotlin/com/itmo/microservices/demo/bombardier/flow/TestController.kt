@@ -135,6 +135,7 @@ class TestController(
                 serviceName = serviceName,
                 launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
                 totalTestsNumber = testingFlow.testParams.numberOfTests,
+                paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
                 testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
                 testImmutableInfo = testInfo
             )
@@ -220,6 +221,7 @@ data class TestContext(
     var stagesComplete: MutableList<String> = mutableListOf(),
     var wasChangedAfterFinalization: Boolean = false,
     var launchTestsRatePerSec: Int,
+    var paymentProcessingTimeMillis: Long,
     var totalTestsNumber: Int,
     val testSuccessByThePaymentFact: Boolean = false,
     val stopAfterOrderCreation: Boolean = false,
@@ -260,4 +262,5 @@ data class TestParameters(
     val ratePerSecond: Int = 10,
     val testSuccessByThePaymentFact: Boolean = true, // todo sukhoa effectively it is always true as we don't analyse it on payment order stage
     val stopAfterOrderCreation: Boolean = false,
+    val paymentProcessingTimeMillis: Long = 1000,
 )

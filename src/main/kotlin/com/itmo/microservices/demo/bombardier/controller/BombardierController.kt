@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
-import java.net.URL
 
 @RestController
 @RequestMapping("/test")
@@ -83,6 +82,7 @@ class BombardierController(
                 ratePerSecond = request.ratePerSecond,
                 testSuccessByThePaymentFact = request.testSuccessByThePaymentFact,
                 stopAfterOrderCreation = request.stopAfterOrderCreation,
+                paymentProcessingTimeMillis = request.processingTimeMillis
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()

@@ -54,11 +54,11 @@ class OrderPaymentStage(
         )
 
         var logRecord: PaymentLogRecord? = try {
-            withTimeout(Duration.ofSeconds(80).toMillis()) {
+            withTimeout(testCtx.paymentProcessingTimeMillis) {
                 merger.putFirstValueAndWaitForSecond(paymentSubmissionDto.transactionId, true)
             }
         } catch (timeoutException: TimeoutCancellationException) {
-            eventLogger.error(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx.orderId, 80L)
+            eventLogger.warn(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx.orderId, testCtx.paymentProcessingTimeMillis)
             Metrics
                 .withTags(
                     Metrics.serviceLabel to testCtx.serviceName,
@@ -125,13 +125,11 @@ class OrderPaymentStage(
 //                }.startWaiting()
 //        }
 
-        val paymentTimeout = 80L
+        val paymentTimeout = testCtx.paymentProcessingTimeMillis
         val paymentLogRecord = logRecord!!
         when (val status = paymentLogRecord.status) {
             PaymentStatus.SUCCESS -> {
-                if (paymentLogRecord.timestamp - paymentSubmissionDto.timestamp > Duration.ofSeconds(paymentTimeout)
-                        .toMillis()
-                ) {
+                if (paymentLogRecord.timestamp - paymentSubmissionDto.timestamp > paymentTimeout) {
                     eventLogger.error(
                         E_PAYMENT_TIMEOUT_EXCEEDED,
                         testCtx.orderId,
