@@ -40,7 +40,7 @@ interface ExternalServiceApi {
     ): List<Long>
 
     suspend fun setDeliveryTime(userId: UUID, orderId: UUID, slot: Long): UUID
-    suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto
+    suspend fun payOrder(userId: UUID, orderId: UUID, deadline: Long): PaymentSubmissionDto
 
     suspend fun simulateDelivery(userId: UUID, orderId: UUID)
 

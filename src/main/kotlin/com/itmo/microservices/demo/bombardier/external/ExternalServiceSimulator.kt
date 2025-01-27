@@ -74,7 +74,7 @@ class ExternalServiceSimulator(
         return UUID.randomUUID()
     }
 
-    override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
+    override suspend fun payOrder(userId: UUID, orderId: UUID, deadline: Long): PaymentSubmissionDto {
         orderToUser[orderId] = userId
         delay(Random.nextLong(1_000))
 

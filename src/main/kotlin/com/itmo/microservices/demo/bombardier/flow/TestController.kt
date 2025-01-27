@@ -18,7 +18,6 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
@@ -136,8 +135,9 @@ class TestController(
                 launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
                 totalTestsNumber = testingFlow.testParams.numberOfTests,
                 paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
+                variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
                 testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-                testImmutableInfo = testInfo
+                testImmutableInfo = testInfo,
             )
 
             testLaunchScope.launch(testContext) {
@@ -222,6 +222,7 @@ data class TestContext(
     var wasChangedAfterFinalization: Boolean = false,
     var launchTestsRatePerSec: Int,
     var paymentProcessingTimeMillis: Long,
+    val variatePaymentProcessingTime: Boolean,
     var totalTestsNumber: Int,
     val testSuccessByThePaymentFact: Boolean = false,
     val stopAfterOrderCreation: Boolean = false,
@@ -263,4 +264,5 @@ data class TestParameters(
     val testSuccessByThePaymentFact: Boolean = true, // todo sukhoa effectively it is always true as we don't analyse it on payment order stage
     val stopAfterOrderCreation: Boolean = false,
     val paymentProcessingTimeMillis: Long = 1000,
+    val variatePaymentProcessingTime: Boolean = false,
 )

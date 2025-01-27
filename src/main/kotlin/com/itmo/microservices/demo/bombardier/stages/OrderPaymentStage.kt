@@ -14,6 +14,7 @@ import kotlinx.coroutines.*
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.*
+import kotlin.random.Random
 
 @Component
 class OrderPaymentStage(
@@ -42,9 +43,16 @@ class OrderPaymentStage(
 
         eventLogger.info(I_PAYMENT_STARTED, testCtx.orderId)
 
+        val paymentProcessingTimeMillis = if (testCtx.variatePaymentProcessingTime) {
+            Random.nextLong(2_000, testCtx.paymentProcessingTimeMillis)
+        } else {
+            testCtx.paymentProcessingTimeMillis
+        }
+
         val paymentSubmissionDto = externalServiceApi.payOrder(
             testCtx.userId!!,
-            testCtx.orderId!!
+            testCtx.orderId!!,
+            System.currentTimeMillis() + paymentProcessingTimeMillis
         )
         eventLog.info(
             I_STARTED_PAYMENT,
@@ -53,19 +61,33 @@ class OrderPaymentStage(
             paymentSubmissionDto.transactionId
         )
 
+
         var logRecord: PaymentLogRecord? = try {
-            withTimeout(testCtx.paymentProcessingTimeMillis) {
+            withTimeout(paymentProcessingTimeMillis) {
                 merger.putFirstValueAndWaitForSecond(paymentSubmissionDto.transactionId, true)
             }
         } catch (timeoutException: TimeoutCancellationException) {
-            eventLogger.warn(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx.orderId, testCtx.paymentProcessingTimeMillis)
+            eventLogger.warn(
+                E_PAYMENT_TIMEOUT_EXCEEDED,
+                testCtx.orderId,
+                Duration.ofMillis(paymentProcessingTimeMillis).toSeconds(),
+                Duration.ofMillis(paymentProcessingTimeMillis - paymentSubmissionDto.timestamp)
+            )
             Metrics
                 .withTags(
                     Metrics.serviceLabel to testCtx.serviceName,
                     paymentOutcome to "FAIL",
-                    paymentFailureReason to "SUBMIT_TIMEOUT"
+                    paymentFailureReason to "TIMEOUT"
                 )
                 .paymentFinished()
+            //            eventLogger.warn(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx.orderId, paymentProcessingTimeMillis)
+//            Metrics
+//                .withTags(
+//                    Metrics.serviceLabel to testCtx.serviceName,
+//                    paymentOutcome to "FAIL",
+//                    paymentFailureReason to "SUBMIT_TIMEOUT"
+//                )
+//                .paymentFinished()
             throw TestStage.TestStageFailedException("Exception instead of silently fail")
         }
 
@@ -125,7 +147,7 @@ class OrderPaymentStage(
 //                }.startWaiting()
 //        }
 
-        val paymentTimeout = testCtx.paymentProcessingTimeMillis
+        val paymentTimeout = paymentProcessingTimeMillis
         val paymentLogRecord = logRecord!!
         when (val status = paymentLogRecord.status) {
             PaymentStatus.SUCCESS -> {

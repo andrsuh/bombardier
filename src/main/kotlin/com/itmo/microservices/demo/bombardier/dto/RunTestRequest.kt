@@ -8,4 +8,5 @@ data class RunTestRequest(
     val testSuccessByThePaymentFact: Boolean = false,
     val stopAfterOrderCreation: Boolean = false,
     val processingTimeMillis: Long = 80_000,
+    val variatePaymentProcessingTime: Boolean = false,
 )

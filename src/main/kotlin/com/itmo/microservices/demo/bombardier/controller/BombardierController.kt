@@ -82,7 +82,8 @@ class BombardierController(
                 ratePerSecond = request.ratePerSecond,
                 testSuccessByThePaymentFact = request.testSuccessByThePaymentFact,
                 stopAfterOrderCreation = request.stopAfterOrderCreation,
-                paymentProcessingTimeMillis = request.processingTimeMillis
+                paymentProcessingTimeMillis = request.processingTimeMillis,
+                variatePaymentProcessingTime = request.variatePaymentProcessingTime,
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()

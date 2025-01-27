@@ -123,10 +123,10 @@ class RealExternalService(
         }
     }
 
-    override suspend fun payOrder(userId: UUID, orderId: UUID): PaymentSubmissionDto {
+    override suspend fun payOrder(userId: UUID, orderId: UUID, deadline: Long): PaymentSubmissionDto {
         val session = getUserSession(userId)
 
-        return communicator.executeWithAuthAndDeserialize("payOrder", "/orders/$orderId/payment", session) {
+        return communicator.executeWithAuthAndDeserialize("payOrder", "/orders/$orderId/payment?deadline=${deadline}", session) {
             POST(BodyPublishers.noBody())
         }
     }
