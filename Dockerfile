@@ -1,7 +1,13 @@
-FROM gcr.io/distroless/java11
+FROM maven:3.9.9-eclipse-temurin-17 AS build
 
-ARG JAR_FILE=target/*.jar
-COPY ${JAR_FILE} app.jar
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src src
+RUN mvn package
 
-CMD ["/app.jar"]
+FROM openjdk:17-jdk-slim
 
+COPY --from=build /app/target/*.jar /bombardier.jar
+
+CMD ["java", "-jar", "/bombardier.jar"]
