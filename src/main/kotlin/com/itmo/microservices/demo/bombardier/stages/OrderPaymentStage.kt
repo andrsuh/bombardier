@@ -71,7 +71,7 @@ class OrderPaymentStage(
                 E_PAYMENT_TIMEOUT_EXCEEDED,
                 testCtx.orderId,
                 Duration.ofMillis(paymentProcessingTimeMillis).toSeconds(),
-                Duration.ofMillis(paymentProcessingTimeMillis - paymentSubmissionDto.timestamp)
+                Duration.ofMillis(System.currentTimeMillis() - paymentSubmissionDto.timestamp)
             )
             Metrics
                 .withTags(
@@ -152,10 +152,10 @@ class OrderPaymentStage(
         when (val status = paymentLogRecord.status) {
             PaymentStatus.SUCCESS -> {
                 if (paymentLogRecord.timestamp - paymentSubmissionDto.timestamp > paymentTimeout) {
-                    eventLogger.error(
+                    eventLogger.warn(
                         E_PAYMENT_TIMEOUT_EXCEEDED,
                         testCtx.orderId,
-                        paymentTimeout,
+                        Duration.ofMillis(paymentTimeout).toSeconds(),
                         Duration.ofMillis(paymentLogRecord.timestamp - paymentSubmissionDto.timestamp)
                     )
                     Metrics

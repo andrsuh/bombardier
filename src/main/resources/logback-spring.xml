@@ -3,23 +3,13 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <springProfile name="!dev">
-        <springProperty name="service" source="spring.application.name"/>
-        <springProperty name="logstashUrl" source="logstash.url"/>§
+    <springProperty name="service" source="spring.application.name"/>
+    <springProperty name="logstashUrl" source="logstash.url"/>
 
-        <logger name="com.itmo" level="WARN"/>
-<!--        <logger name="com.itmo.microservices.demo.externalsys" level="INFO"/>-->
+    <logger name="com.itmo" level="WARN"/>
 
-        <root level="WARN">
-            <appender-ref ref="CONSOLE"/>
-        </root>
-    </springProfile>
+    <root level="ERROR">
+        <appender-ref ref="CONSOLE"/>
+    </root>
 
-    <springProfile name="dev">
-        <logger name="com.itmo" level="WARN"/>
-
-        <root level="WARN">
-            <appender-ref ref="CONSOLE"/>
-        </root>
-    </springProfile>
 </configuration>
