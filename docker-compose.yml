@@ -3,7 +3,8 @@ version: "3.8"
 services:
 #  советую запускать сервис через IDE, поскольку так он более производителен. Однако, его можно запустить и через docker-compose, раскомментировав следующие строки
 #  bombardier:
-#    image: ghcr.io/andrsuh/bombardier:${BOMBARDIER_VERSION:-latest}
+#    image: bombardier
+#    build: .
 #    ports:
 #      - "1234:1234"
 #    restart: unless-stopped
