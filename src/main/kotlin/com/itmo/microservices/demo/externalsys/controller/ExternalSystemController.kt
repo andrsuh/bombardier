@@ -7,7 +7,6 @@ import com.itmo.microservices.demo.common.*
 import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
 import com.itmo.microservices.demo.common.TokenBucketRateLimiter
-import io.github.resilience4j.ratelimiter.RateLimiter
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -78,8 +77,8 @@ class ExternalSystemController(
                 service.name,
                 accName3,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 4_000),
-                speedLimits = SpeedLimits(2, 32),
+                slo = Slo(upperLimitInvocationMillis = 2_000),
+                speedLimits = SpeedLimits(10, 30),
                 price = (basePrice * 0.3).toInt()
             )
 
@@ -365,7 +364,7 @@ class ExternalSystemController(
         val speedLimits: SpeedLimits,
         val network: Network = Network(),
         val price: Int,
-        val rateLimiter: RateLimiter = makeRateLimiter(accountName, speedLimits.rps, TimeUnit.SECONDS),
+        val rateLimiter: RateLimiter = LeakingBucketRateLimiter(speedLimits.rps.toLong(), Duration.ofSeconds(1), (speedLimits.rps * 1.1).toInt()),
         val window: SemaphoreOngoingWindow = SemaphoreOngoingWindow(speedLimits.win),
     )
 
@@ -438,18 +437,18 @@ class ExternalSystemController(
         logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}.")
 
         // if we perform blocking logic before RL acquisition, we will non-intentionally break the speed limits
-        if (!account.rateLimiter.acquirePermission()) {
+        if (!account.rateLimiter.tick()) {
             performBlockingLogic(account)
             networkLatency(account)
 
             PromMetrics.externalSysDurationRecord(
                 serviceName,
                 accountName,
-                "RL_BREACHED",
+                "rate_limit_breached",
                 System.currentTimeMillis() - start
             )
 //            return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
-            return HttpStatus.INTERNAL_SERVER_ERROR to bulk.failBulk("Rate limit for account: $accountName breached")
+            return HttpStatus.TOO_MANY_REQUESTS to bulk.failBulk("Rate limit for account: $accountName breached")
         }
 
         try {
@@ -508,7 +507,7 @@ class ExternalSystemController(
                 PromMetrics.externalSysDurationRecord(
                     serviceName,
                     accountName,
-                    "WIN_BREACHED",
+                    "parallel_requests_limit_breached",
                     System.currentTimeMillis() - start
                 )
 //                return ResponseEntity.status(500).body(
@@ -517,7 +516,7 @@ class ExternalSystemController(
 //                        "Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing"
 //                    )
 //                )
-                return HttpStatus.INTERNAL_SERVER_ERROR to bulk.failBulk("Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing")
+                return HttpStatus.BANDWIDTH_LIMIT_EXCEEDED to bulk.failBulk("Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing")
             }
         } catch (e: Exception) {
             account.window.release()
@@ -525,7 +524,7 @@ class ExternalSystemController(
             PromMetrics.externalSysDurationRecord(
                 serviceName,
                 accountName,
-                "UNEXPECTED_ERROR",
+                "unexpected_error",
                 System.currentTimeMillis() - start
             )
             throw e
