@@ -120,10 +120,11 @@ class ExternalSystemController(
                 service.name,
                 accName7,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 100, timeLimitsBreachingProbability = 0.09, timeLimitsBreachingMinTime = Duration.ofMillis(9000), timeLimitsBreachingMaxTime = Duration.ofMillis(9100)),
+                slo = Slo(upperLimitInvocationMillis = 100, timeLimitsBreachingProbability = 0.08, timeLimitsBreachingMinTime = Duration.ofMillis(9000), timeLimitsBreachingMaxTime = Duration.ofMillis(9100)),
                 network = Network(40, 90),
                 speedLimits = SpeedLimits(5, 5),
-                price = (basePrice * 0.3).toInt()
+                price = (basePrice * 0.3).toInt(),
+                exposedAverageProcessingTime = Duration.ofMillis(500)
             )
 
             // default 8
@@ -233,7 +234,7 @@ class ExternalSystemController(
                 it.speedLimits.win,
                 it.speedLimits.rps,
                 it.price,
-                Duration.ofMillis(it.slo.upperLimitInvocationMillis / 2),
+                it.exposedAverageProcessingTime,
             )
         }
     }
@@ -361,10 +362,11 @@ class ExternalSystemController(
         val accountName: String,
         val callbackPath: String?,
         val slo: Slo = Slo(),
+        val exposedAverageProcessingTime: Duration = Duration.ofMillis(slo.upperLimitInvocationMillis / 2),
         val speedLimits: SpeedLimits,
         val network: Network = Network(),
         val price: Int,
-        val rateLimiter: RateLimiter = LeakingBucketRateLimiter(speedLimits.rps.toLong(), Duration.ofSeconds(1), (speedLimits.rps * 1.1).toInt()),
+        val rateLimiter: RateLimiter = LeakingBucketMeterRateLimiter(speedLimits.rps.toLong(), Duration.ofSeconds(1), (speedLimits.rps * 1.2).toInt()),
         val window: SemaphoreOngoingWindow = SemaphoreOngoingWindow(speedLimits.win),
     )
 
@@ -434,7 +436,6 @@ class ExternalSystemController(
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysChargeAmountRecord(account.price * bulk.requests.size)
 
-        logger.info("Account $accountName charged ${account.price} from service ${account.serviceName}.")
 
         // if we perform blocking logic before RL acquisition, we will non-intentionally break the speed limits
         if (!account.rateLimiter.tick()) {

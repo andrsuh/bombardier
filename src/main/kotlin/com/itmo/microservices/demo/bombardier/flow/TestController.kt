@@ -6,14 +6,18 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServic
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWithApiAndAdditional
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
+import com.itmo.microservices.demo.common.CompositeRateLimiter
+import com.itmo.microservices.demo.common.LeakingBucketFluctuatingRateLimiter
 import com.itmo.microservices.demo.common.SlowStartRateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
 import io.micrometer.core.instrument.util.NamedThreadFactory
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -41,6 +45,7 @@ class TestController(
 
 //    private val testInvokationScope = CoroutineScope(executor.asCoroutineDispatcher())
     private val testLaunchScope = CoroutineScope(executor.asCoroutineDispatcher())
+    private val rateLimitsTokensChannel = Channel<Int>(Channel.UNLIMITED)
 
 //    private val testStages = listOf<TestStage>(
 //        choosingUserAccountStage.asErrorFree().asMetricRecordable(),
@@ -117,7 +122,13 @@ class TestController(
         val testingFlow = runningTests[serviceName] ?: return
 
         val params = testingFlow.testParams
+
+        val amplitude = (params.ratePerSecond * 0.2).toInt()
         val rateLimiter = SlowStartRateLimiter(params.ratePerSecond, TimeUnit.SECONDS, slowStartOn = true)
+//        val rateLimiter = CompositeRateLimiter(
+//            SlowStartRateLimiter(params.ratePerSecond + amplitude, TimeUnit.SECONDS, slowStartOn = true),
+//            LeakingBucketFluctuatingRateLimiter(params.ratePerSecond, Duration.ofSeconds(1), params.ratePerSecond, amplitude, 0.15)
+//        )
 
         val testStages = mutableListOf<TestStage>().also {
             it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
@@ -128,34 +139,39 @@ class TestController(
         }
 
         val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
+//        for (i in 1..250_000) {
+        val testContext = TestContext(
+            serviceName = serviceName,
+            launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+            totalTestsNumber = testingFlow.testParams.numberOfTests,
+            paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
+            variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
+            testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+            testImmutableInfo = testInfo,
+        )
 
-        for (i in 1..250_000) {
-            val testContext = TestContext(
-                serviceName = serviceName,
-                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
-                totalTestsNumber = testingFlow.testParams.numberOfTests,
-                paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
-                variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
-                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-                testImmutableInfo = testInfo,
-            )
+        while (true) {
+            val testNum = testingFlow.testsStarted.getAndIncrement()
+            if (testNum > params.numberOfTests) {
+                logger.error("Wrapping up test flow. Number of tests exceeded")
+                runningTests.remove(serviceName)
+                return
+            }
+
+            while (true) {
+                if (rateLimiter.tick()) {
+                    break
+                }
+                Thread.sleep(1000 - System.currentTimeMillis() % 1000)
+            }
 
             testLaunchScope.launch(testContext) {
-                while (true) {
-                    val testNum = testingFlow.testsStarted.getAndIncrement()
-                    if (testNum > params.numberOfTests) {
-                        logger.info("Wrapping up test flow. Number of tests exceeded")
-                        runningTests.remove(serviceName)
-                        return@launch
-                    }
-
-                    testContext.testStartTime = System.currentTimeMillis()
-                    rateLimiter.tickBlocking()
-                    logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                    launchNewTestFlow(testContext, testingFlow, descriptor, stuff, testStages)
-                }
+                testContext.testStartTime = System.currentTimeMillis()
+                logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+                launchNewTestFlow(testContext, testingFlow, descriptor, stuff, testStages)
             }
         }
+//        }
     }
 
     private suspend fun launchNewTestFlow(
