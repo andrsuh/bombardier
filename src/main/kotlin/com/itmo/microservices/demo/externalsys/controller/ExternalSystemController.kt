@@ -44,7 +44,7 @@ class ExternalSystemController(
                 testAcc,
                 null,
                 speedLimits = SpeedLimits(100_000, 100_000_000),
-                slo = Slo(upperLimitInvocationMillis = 2),
+                slo = Slo(upperLimitInvocationMillis = 100_000),
                 price = 0
             )
 
@@ -99,7 +99,7 @@ class ExternalSystemController(
                 service.name,
                 accName5,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 10_000),
+                slo = Slo(upperLimitInvocationMillis = 9800),
                 speedLimits = SpeedLimits(10, 8),
                 price = (basePrice * 0.3).toInt()
             )
@@ -390,11 +390,18 @@ class ExternalSystemController(
         val errorResponseProbability: Double = -1.0,
     )
 
-    @PostMapping("/process/bulk")
+    @PutMapping("/process/bulk")
     suspend fun processBulk(
-        @RequestBody request: BulkRequest
+        @RequestBody request: BulkRequest,
+        @RequestParam timeout: Duration = Duration.ofSeconds(50),
     ): ResponseEntity<BulkResponse> {
-        val (code, resp) = processInternal(request)
+        val (code, resp) = try {
+            withTimeout(timeout.toMillis()) {
+                processInternal(request)
+            }
+        } catch (e: TimeoutCancellationException) {
+            return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).body(request.failBulk("Timeout"))
+        }
 
         return ResponseEntity.status(code).body(resp)
     }
@@ -406,14 +413,21 @@ class ExternalSystemController(
         @RequestParam transactionId: String,
         @RequestParam paymentId: String,
         @RequestParam amount: Int,
+        @RequestParam timeout: Duration = Duration.ofSeconds(50),
     ): ResponseEntity<Response> {
-        val (code, bulkResp) = processInternal(
-            BulkRequest(
-                serviceName,
-                accountName,
-                listOf(Request(transactionId, paymentId, amount))
-            )
-        )
+        val (code, bulkResp) = try {
+            withTimeout(timeout.toMillis()) {
+                processInternal(
+                    BulkRequest(
+                        serviceName,
+                        accountName,
+                        listOf(Request(transactionId, paymentId, amount))
+                    )
+                )
+            }
+        } catch (e: TimeoutCancellationException) {
+            return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).body(Response(transactionId, paymentId, false, "Timeout"))
+        }
 
         return ResponseEntity.status(code).body(bulkResp.responses.first())
     }
