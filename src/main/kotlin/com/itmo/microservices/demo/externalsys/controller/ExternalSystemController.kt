@@ -10,6 +10,7 @@ import com.itmo.microservices.demo.common.TokenBucketRateLimiter
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatus.*
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.time.Duration
@@ -28,6 +29,7 @@ class ExternalSystemController(
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
+        val defaultTimeout = Duration.ofSeconds(100).toMillis()
     }
 
     private val invoices = ConcurrentHashMap<String, AtomicInteger>()
@@ -120,11 +122,11 @@ class ExternalSystemController(
                 service.name,
                 accName7,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 100, timeLimitsBreachingProbability = 0.08, timeLimitsBreachingMinTime = Duration.ofMillis(9000), timeLimitsBreachingMaxTime = Duration.ofMillis(9100)),
+                slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.06, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
                 network = Network(40, 90),
-                speedLimits = SpeedLimits(5, 5),
+                speedLimits = SpeedLimits(5, 25),
                 price = (basePrice * 0.3).toInt(),
-                exposedAverageProcessingTime = Duration.ofMillis(500)
+                exposedAverageProcessingTime = Duration.ofMillis(950)
             )
 
             // default 8
@@ -221,6 +223,18 @@ class ExternalSystemController(
                 ),
                 speedLimits = SpeedLimits(200, 1500),
                 price = (basePrice * 0.3).toInt()
+            )
+
+            val accName16 = "acc-16"
+            accounts["${service.name}-$accName16"] = Account(
+                service.name,
+                accName16,
+                null,
+                slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.08, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
+                network = Network(40, 90),
+                speedLimits = SpeedLimits(5, 5),
+                price = (basePrice * 0.3).toInt(),
+                exposedAverageProcessingTime = Duration.ofMillis(650)
             )
         }
     }
@@ -393,14 +407,14 @@ class ExternalSystemController(
     @PutMapping("/process/bulk")
     suspend fun processBulk(
         @RequestBody request: BulkRequest,
-        @RequestParam timeout: Duration = Duration.ofSeconds(50),
+        @RequestParam timeout: Duration?,
     ): ResponseEntity<BulkResponse> {
         val (code, resp) = try {
-            withTimeout(timeout.toMillis()) {
+            withTimeout(timeout?.toMillis() ?: defaultTimeout) {
                 processInternal(request)
             }
         } catch (e: TimeoutCancellationException) {
-            return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).body(request.failBulk("Timeout"))
+            return ResponseEntity.status(REQUEST_TIMEOUT).body(request.failBulk("Timeout"))
         }
 
         return ResponseEntity.status(code).body(resp)
@@ -413,10 +427,10 @@ class ExternalSystemController(
         @RequestParam transactionId: String,
         @RequestParam paymentId: String,
         @RequestParam amount: Int,
-        @RequestParam timeout: Duration = Duration.ofSeconds(50),
+        @RequestParam timeout: Duration?,
     ): ResponseEntity<Response> {
         val (code, bulkResp) = try {
-            withTimeout(timeout.toMillis()) {
+            withTimeout(timeout?.toMillis() ?: defaultTimeout) {
                 processInternal(
                     BulkRequest(
                         serviceName,
@@ -426,7 +440,7 @@ class ExternalSystemController(
                 )
             }
         } catch (e: TimeoutCancellationException) {
-            return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).body(Response(transactionId, paymentId, false, "Timeout"))
+            return ResponseEntity.status(REQUEST_TIMEOUT).body(Response(transactionId, paymentId, false, "Timeout"))
         }
 
         return ResponseEntity.status(code).body(bulkResp.responses.first())
@@ -462,20 +476,18 @@ class ExternalSystemController(
                 "rate_limit_breached",
                 System.currentTimeMillis() - start
             )
-//            return ResponseEntity.status(500).body(Response(false, "Rate limit for account: $accountName breached"))
-            return HttpStatus.TOO_MANY_REQUESTS to bulk.failBulk("Rate limit for account: $accountName breached")
+            return TOO_MANY_REQUESTS to bulk.failBulk("Rate limit for account: $accountName breached")
         }
 
         try {
             if (account.window.tryAcquire()) {
                 performBlockingLogic(account)
-                val duration = Random.nextLong(0, account.slo.upperLimitInvocationMillis)
-                delay(duration)
 
-                if (Random.nextDouble(0.0, 1.0) < account.slo.timeLimitsBreachingProbability) {
-                    account.window.release()
-                    delay(Random.nextLong(account.slo.timeLimitsBreachingMinTime.toMillis(), account.slo.timeLimitsBreachingMaxTime.toMillis()))
-                }
+                val duration = if (Random.nextDouble(0.0, 1.0) < account.slo.timeLimitsBreachingProbability) {
+                    Random.nextLong(account.slo.timeLimitsBreachingMinTime.toMillis(), account.slo.timeLimitsBreachingMaxTime.toMillis())
+                } else Random.nextLong(0, account.slo.upperLimitInvocationMillis)
+
+                delay(duration)
 
                 val resp = bulk.requests.map {
                     val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
@@ -504,9 +516,7 @@ class ExternalSystemController(
                 }.toBulkResponse()
 
 
-//                return ResponseEntity.ok(Response(result)).also {
-                return (HttpStatus.OK to resp).also {
-                    account.window.release()
+                return (OK to resp).also {
                     networkLatency(account)
 
                     PromMetrics.externalSysDurationRecord(
@@ -525,24 +535,20 @@ class ExternalSystemController(
                     "parallel_requests_limit_breached",
                     System.currentTimeMillis() - start
                 )
-//                return ResponseEntity.status(500).body(
-//                    Response(
-//                        false,
-//                        "Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing"
-//                    )
-//                )
-                return HttpStatus.BANDWIDTH_LIMIT_EXCEEDED to bulk.failBulk("Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing")
+                return BANDWIDTH_LIMIT_EXCEEDED to bulk.failBulk("Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing")
             }
-        } catch (e: Exception) {
-            account.window.release()
+        } catch (e: Throwable) {
+            logger.error("Unexpected error:", e)
             networkLatency(account)
             PromMetrics.externalSysDurationRecord(
                 serviceName,
                 accountName,
-                "unexpected_error",
+                if (e is TimeoutCancellationException) "CLIENT_DEADLINE_EXCEEDED" else "UNEXPECTED_ERROR",
                 System.currentTimeMillis() - start
             )
             throw e
+        } finally {
+            account.window.release()
         }
     }
 
@@ -556,7 +562,6 @@ class ExternalSystemController(
 
         val blockUntil = blockList[accountName]
         if (blockUntil != null) {
-            account.window.release()
             delay(blockUntil - System.currentTimeMillis())
             blockList.remove(accountName)
         }

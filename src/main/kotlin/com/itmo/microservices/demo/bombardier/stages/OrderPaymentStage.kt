@@ -77,7 +77,7 @@ class OrderPaymentStage(
                 .withTags(
                     Metrics.serviceLabel to testCtx.serviceName,
                     paymentOutcome to "FAIL",
-                    paymentFailureReason to "TIMEOUT"
+                    paymentFailureReason to "CLIENT_TIMEOUT"
                 )
                 .paymentFinished()
             //            eventLogger.warn(E_SUBMISSION_TIMEOUT_EXCEEDED, testCtx.orderId, paymentProcessingTimeMillis)
