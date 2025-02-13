@@ -380,7 +380,7 @@ class ExternalSystemController(
         val speedLimits: SpeedLimits,
         val network: Network = Network(),
         val price: Int,
-        val rateLimiter: RateLimiter = LeakingBucketMeterRateLimiter(speedLimits.rps.toLong(), Duration.ofSeconds(1), speedLimits.rps),
+        val rateLimiter: RateLimiter = FixedWindowRateLimiter(speedLimits.rps, 1, TimeUnit.SECONDS),
         val window: SemaphoreOngoingWindow = SemaphoreOngoingWindow(speedLimits.win),
     )
 
