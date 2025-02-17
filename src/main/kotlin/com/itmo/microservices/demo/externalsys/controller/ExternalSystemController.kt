@@ -102,7 +102,7 @@ class ExternalSystemController(
                 accName5,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 9800),
-                speedLimits = SpeedLimits(10, 8),
+                speedLimits = SpeedLimits(3, 5),
                 price = (basePrice * 0.3).toInt()
             )
 
