@@ -2,6 +2,7 @@ package com.itmo.microservices.demo.common
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -10,7 +11,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.PriorityBlockingQueue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 class SlidingWindowRateLimiter(
     private val rate: Long,
@@ -26,14 +26,11 @@ class SlidingWindowRateLimiter(
         if (sum.get() > rate) {
             return false
         } else {
-            mutex.withLock {
-                val now = System.currentTimeMillis()
-                if (sum.get() <= rate) {
-                    queue.add(Measure(1, now))
-                    sum.incrementAndGet()
-                    return true
-                } else return false
-            }
+            if (sum.get() <= rate) {
+                queue.add(Measure(1, System.currentTimeMillis()))
+                sum.incrementAndGet()
+                return true
+            } else return false
         }
     }
 
@@ -50,7 +47,12 @@ class SlidingWindowRateLimiter(
         while (true) {
             val head = queue.peek()
             val winStart = System.currentTimeMillis() - window.toMillis()
-            if (head == null || head.timestamp > winStart) {
+            if (head == null) {
+                delay(1L)
+                continue
+            }
+            if (head.timestamp > winStart) {
+                delay(head.timestamp - winStart)
                 continue
             }
             sum.addAndGet(-1)
