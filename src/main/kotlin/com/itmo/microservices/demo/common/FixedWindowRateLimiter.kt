@@ -10,6 +10,8 @@ import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.max
+import kotlin.math.min
 
 interface RateLimiter {
     fun tick(): Boolean
@@ -59,7 +61,7 @@ class FixedWindowRateLimiter(
 
 class SlowStartRateLimiter(
     private val targetRate: Int,
-    private val timeUnit: TimeUnit = TimeUnit.MINUTES,
+    private val window: Duration = Duration.ofSeconds(1),
     private val slowStartOn: Boolean = true,
 ): RateLimiter {
     companion object {
@@ -94,10 +96,10 @@ class SlowStartRateLimiter(
             logger.trace("Rate limiter ${rateLimiterNum}. Released $permitsToRelease permits")
 
             if (slowStartOn && currentRate < targetRate) {
-                currentRate = minOf(targetRate, currentRate * 2)
+                currentRate = min(max(currentRate + 1.0, currentRate * 1.3).toInt(), targetRate)
             }
 
-            delay(timeUnit.toMillis(1) - (System.currentTimeMillis() - start))
+            delay(window.toMillis() - (System.currentTimeMillis() - start))
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 

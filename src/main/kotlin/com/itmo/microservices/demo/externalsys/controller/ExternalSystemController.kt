@@ -46,7 +46,7 @@ class ExternalSystemController(
                 testAcc,
                 null,
                 speedLimits = SpeedLimits(100_000, 100_000_000),
-                slo = Slo(upperLimitInvocationMillis = 100_000),
+                slo = Slo(upperLimitInvocationMillis = 10),
                 price = 0
             )
 

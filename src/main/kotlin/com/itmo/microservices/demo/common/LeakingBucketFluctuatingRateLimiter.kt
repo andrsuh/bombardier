@@ -50,3 +50,40 @@ class LeakingBucketFluctuatingRateLimiter(
         private val logger: Logger = LoggerFactory.getLogger(LeakingBucketRateLimiter::class.java)
     }
 }
+
+class SinRateLimiter(
+    private val rate: Int,
+    private val window: Duration,
+    private val amplitude: Int,
+    private val frequencySec: Int = 5,
+) : RateLimiter {
+    private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
+    private val meter = AtomicInteger(0)
+
+    @Volatile
+    private var thisRoundRate = rate
+
+    private var secondsCounter = 1
+
+    override fun tick(): Boolean {
+        while (true) {
+            val current = meter.get()
+            if (current >= thisRoundRate) return false
+            if (meter.compareAndSet(current, current + 1)) return true
+        }
+    }
+
+    private val releaseJob = rateLimiterScope.launch {
+        while (true) {
+            delay(window.toMillis())
+            meter.set(0)
+            thisRoundRate = (amplitude * Math.sin((2 * Math.PI * secondsCounter / frequencySec) - (Math.PI / 2))).toInt() + rate
+            logger.trace("Rate: $thisRoundRate")
+            secondsCounter++
+        }
+    }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
+
+    companion object {
+        private val logger: Logger = LoggerFactory.getLogger(LeakingBucketRateLimiter::class.java)
+    }
+}

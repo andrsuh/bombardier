@@ -8,6 +8,7 @@ import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
 import com.itmo.microservices.demo.common.CompositeRateLimiter
 import com.itmo.microservices.demo.common.LeakingBucketFluctuatingRateLimiter
+import com.itmo.microservices.demo.common.SinRateLimiter
 import com.itmo.microservices.demo.common.SlowStartRateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
 import com.itmo.microservices.demo.common.metrics.Metrics
@@ -123,12 +124,8 @@ class TestController(
 
         val params = testingFlow.testParams
 
-        val amplitude = (params.ratePerSecond * 0.2).toInt()
-        val rateLimiter = SlowStartRateLimiter(params.ratePerSecond, TimeUnit.SECONDS, slowStartOn = true)
-//        val rateLimiter = CompositeRateLimiter(
-//            SlowStartRateLimiter(params.ratePerSecond + amplitude, TimeUnit.SECONDS, slowStartOn = true),
-//            LeakingBucketFluctuatingRateLimiter(params.ratePerSecond, Duration.ofSeconds(1), params.ratePerSecond, amplitude, 0.15)
-//        )
+//        val amplitude = (params.ratePerSecond * 0.2).toInt()
+        val rateLimiter =  SlowStartRateLimiter(params.ratePerSecond, Duration.ofSeconds(1), slowStartOn = true)
 
         val testStages = mutableListOf<TestStage>().also {
             it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
