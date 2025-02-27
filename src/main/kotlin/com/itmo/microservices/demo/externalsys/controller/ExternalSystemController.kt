@@ -124,7 +124,7 @@ class ExternalSystemController(
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.06, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
                 network = Network(40, 90),
-                speedLimits = SpeedLimits(5, 25),
+                speedLimits = SpeedLimits(5, 6),
                 price = (basePrice * 0.3).toInt(),
                 exposedAverageProcessingTime = Duration.ofMillis(950)
             )

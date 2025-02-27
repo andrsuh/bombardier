@@ -9,4 +9,5 @@ data class RunTestRequest(
     val stopAfterOrderCreation: Boolean = false,
     val processingTimeMillis: Long = 80_000,
     val variatePaymentProcessingTime: Boolean = false,
+    val profile: String = "default",
 )

@@ -6,8 +6,8 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServic
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWithApiAndAdditional
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
-import com.itmo.microservices.demo.common.CompositeRateLimiter
-import com.itmo.microservices.demo.common.LeakingBucketFluctuatingRateLimiter
+import com.itmo.microservices.demo.common.AllAllowCompositeRateLimiter
+import com.itmo.microservices.demo.common.RateLimiter
 import com.itmo.microservices.demo.common.SinRateLimiter
 import com.itmo.microservices.demo.common.SlowStartRateLimiter
 import com.itmo.microservices.demo.common.logging.LoggerWrapper
@@ -23,7 +23,6 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 
@@ -124,8 +123,18 @@ class TestController(
 
         val params = testingFlow.testParams
 
-//        val amplitude = (params.ratePerSecond * 0.2).toInt()
-        val rateLimiter =  SlowStartRateLimiter(params.ratePerSecond, Duration.ofSeconds(1), slowStartOn = true)
+        val amplitude = ((params.loadProfile.sinLoad?.amplitudeRatio ?: 0.0) * params.ratePerSecond).toInt()
+        val mainLimiter =  SlowStartRateLimiter(params.ratePerSecond + amplitude, Duration.ofSeconds(1), slowStartOn = true)
+
+        val rateLimitersList = mutableListOf<RateLimiter>()
+
+        params.loadProfile.sinLoad?.let {
+            rateLimitersList.add(
+                SinRateLimiter(params.ratePerSecond, Duration.ofSeconds(1), amplitude, it.period.toSeconds().toInt())
+            )
+        }
+
+        val rateLimiter = AllAllowCompositeRateLimiter(listOf(mainLimiter, *rateLimitersList.toTypedArray()))
 
         val testStages = mutableListOf<TestStage>().also {
             it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
@@ -278,4 +287,15 @@ data class TestParameters(
     val stopAfterOrderCreation: Boolean = false,
     val paymentProcessingTimeMillis: Long = 1000,
     val variatePaymentProcessingTime: Boolean = false,
+    val loadProfile: LoadProfile,
+)
+
+data class LoadProfile(
+    val ratePerSecond: Int = 10,
+    val sinLoad: SinLoad? = null,
+)
+
+data class SinLoad(
+    val amplitudeRatio: Double,
+    val period: Duration,
 )
