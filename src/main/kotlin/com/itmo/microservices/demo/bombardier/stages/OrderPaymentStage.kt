@@ -49,10 +49,11 @@ class OrderPaymentStage(
             testCtx.paymentProcessingTimeMillis
         }
 
+        val paymentDeadline = System.currentTimeMillis() + paymentProcessingTimeMillis
         val paymentSubmissionDto = externalServiceApi.payOrder(
             testCtx.userId!!,
             testCtx.orderId!!,
-            System.currentTimeMillis() + paymentProcessingTimeMillis
+            paymentDeadline
         )
         eventLog.info(
             I_STARTED_PAYMENT,
@@ -147,15 +148,14 @@ class OrderPaymentStage(
 //                }.startWaiting()
 //        }
 
-        val paymentTimeout = paymentProcessingTimeMillis
         val paymentLogRecord = logRecord!!
-        when (val status = paymentLogRecord.status) {
+        when (paymentLogRecord.status) {
             PaymentStatus.SUCCESS -> {
-                if (paymentLogRecord.timestamp - paymentSubmissionDto.timestamp > paymentTimeout) {
-                    eventLogger.warn(
+                if (paymentLogRecord.timestamp > paymentDeadline) {
+                    eventLogger.error(
                         E_PAYMENT_TIMEOUT_EXCEEDED,
                         testCtx.orderId,
-                        Duration.ofMillis(paymentTimeout).toSeconds(),
+                        Duration.ofMillis(paymentProcessingTimeMillis).toSeconds(),
                         Duration.ofMillis(paymentLogRecord.timestamp - paymentSubmissionDto.timestamp)
                     )
                     Metrics

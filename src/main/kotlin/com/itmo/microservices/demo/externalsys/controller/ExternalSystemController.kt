@@ -122,11 +122,11 @@ class ExternalSystemController(
                 service.name,
                 accName7,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.06, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
+                slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.1, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
                 network = Network(40, 90),
-                speedLimits = SpeedLimits(5, 6),
+                speedLimits = SpeedLimits(8, 50),
                 price = (basePrice * 0.3).toInt(),
-                exposedAverageProcessingTime = Duration.ofMillis(950)
+                exposedAverageProcessingTime = Duration.ofMillis(1200)
             )
 
             // default 8
@@ -135,9 +135,9 @@ class ExternalSystemController(
                 service.name,
                 accName8,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 1800, errorResponseProbability = 0.1),
+                slo = Slo(upperLimitInvocationMillis = 1400, errorResponseProbability = 0.1),
                 network = Network(40, 90),
-                speedLimits = SpeedLimits(8, 40),
+                speedLimits = SpeedLimits(10, 50),
                 price = (basePrice * 0.3).toInt()
             )
 
