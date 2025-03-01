@@ -3,7 +3,7 @@ spring:
     name: bombardier
   mvc:
     async:
-      request-timeout: 120000
+      request-timeout: 200000
 
 server:
   port: 1234

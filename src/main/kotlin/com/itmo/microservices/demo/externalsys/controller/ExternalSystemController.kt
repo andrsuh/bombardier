@@ -29,7 +29,7 @@ class ExternalSystemController(
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
-        val defaultTimeout = Duration.ofSeconds(100).toMillis()
+        val defaultTimeout = Duration.ofHours(1).toMillis()
     }
 
     private val invoices = ConcurrentHashMap<String, AtomicInteger>()
@@ -230,11 +230,11 @@ class ExternalSystemController(
                 service.name,
                 accName16,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.08, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
+                slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.15, timeLimitsBreachingMinTime = Duration.ofDays(1), timeLimitsBreachingMaxTime = Duration.ofDays(2)),
                 network = Network(40, 90),
-                speedLimits = SpeedLimits(5, 5),
+                speedLimits = SpeedLimits(30, 5),
                 price = (basePrice * 0.3).toInt(),
-                exposedAverageProcessingTime = Duration.ofMillis(650)
+                exposedAverageProcessingTime = Duration.ofMillis(800)
             )
         }
     }
@@ -538,7 +538,7 @@ class ExternalSystemController(
                 return BANDWIDTH_LIMIT_EXCEEDED to bulk.failBulk("Parallel requests limit for account: $accountName breached. Already ${account.window.maxWinSize} executing")
             }
         } catch (e: Throwable) {
-            logger.error("Unexpected error:", e)
+            logger.trace("Unexpected error:", e) // global jetty timeout for example or cancellation exception
             networkLatency(account)
             PromMetrics.externalSysDurationRecord(
                 serviceName,
