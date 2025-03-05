@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.annotation.PostConstruct
@@ -30,6 +31,8 @@ class ExternalSystemController(
     companion object {
         val logger = LoggerFactory.getLogger(ExternalSystemController::class.java)
         val defaultTimeout = Duration.ofHours(1).toMillis()
+
+        val mappingScope = CoroutineScope(Executors.newFixedThreadPool(8).asCoroutineDispatcher())
     }
 
     private val invoices = ConcurrentHashMap<String, AtomicInteger>()
@@ -390,11 +393,12 @@ class ExternalSystemController(
     )
 
     data class Network(
-        val noiseLowerBoundMillis: Long = 0,
-        val noiseUpperBoundMillis: Long = 10,
+        val noiseLowerBoundMillis: Long = 0L,
+        val noiseUpperBoundMillis: Long = 0L,
     )
 
     data class Slo(
+        val lowerLimitInvocationMillis: Long = 0,
         val upperLimitInvocationMillis: Long = 10_000,
         val accountBlockingProbability: Double = 0.0,
         val accountBlockingMaxTime: Duration = Duration.ofMillis(1000),
@@ -485,30 +489,27 @@ class ExternalSystemController(
 
                 val duration = if (Random.nextDouble(0.0, 1.0) < account.slo.timeLimitsBreachingProbability) {
                     Random.nextLong(account.slo.timeLimitsBreachingMinTime.toMillis(), account.slo.timeLimitsBreachingMaxTime.toMillis())
-                } else Random.nextLong(0, account.slo.upperLimitInvocationMillis)
+                } else Random.nextLong(account.slo.lowerLimitInvocationMillis, account.slo.upperLimitInvocationMillis)
 
                 delay(duration)
 
                 val resp = bulk.requests.map {
                     val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
 
-                    coroutineScope {
-                        launch { // better to make channel + background coroutine that will wake up payments
-                            try {
-                                if (result) { // todo sukhoa we have to unblock it for the error also no?
-                                    withTimeout(200) {
-                                        merger.putSecondValueAndWaitForFirst(
-                                            UUID.fromString(it.paymentId),
-                                            PaymentLogRecord(
-                                                System.currentTimeMillis(),
-                                                PaymentStatus.SUCCESS, it.amount, UUID.fromString(it.paymentId)
-                                            )
+                    mappingScope.launch { // better to make channel + background coroutine that will wake up payments
+                        try {
+                            if (result) { // todo sukhoa we have to unblock it for the error also no?
+                                withTimeout(200) {
+                                    merger.putSecondValueAndWaitForFirst(
+                                        UUID.fromString(it.paymentId),
+                                        PaymentLogRecord(
+                                            System.currentTimeMillis(),
+                                            PaymentStatus.SUCCESS, it.amount, UUID.fromString(it.paymentId)
                                         )
-                                    }
+                                    )
                                 }
-                            } catch (ignored: TimeoutCancellationException) {
                             }
-                        }
+                        } catch (ignored: TimeoutCancellationException) { }
                     }
 
                     logger.info("[external] - Transaction ${it.transactionId}. Duration: $duration")
