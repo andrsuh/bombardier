@@ -85,6 +85,7 @@ class BombardierController(
                 testSuccessByThePaymentFact = request.testSuccessByThePaymentFact,
                 stopAfterOrderCreation = request.stopAfterOrderCreation,
                 paymentProcessingTimeMillis = request.processingTimeMillis,
+                paymentProcessingTimeAmplitude = request.ptvaMillis,
                 variatePaymentProcessingTime = request.variatePaymentProcessingTime,
                 loadProfile = loadProfile(request.profile, request.ratePerSecond),
             )
@@ -171,13 +172,23 @@ class BombardierController(
         services.add(ServiceDescriptor(request.name, request.url))
     }
 
-    private fun loadProfile(key: String, ratePerSec: Int): LoadProfile {
-        return when (key) {
-            "default" -> LoadProfile(ratePerSecond = 1)
-            "s_0.1_10s" -> LoadProfile(ratePerSecond = 10, sinLoad = SinLoad(0.1, Duration.ofSeconds(10)))
-            "s_0.1_5s" -> LoadProfile(ratePerSecond = 10, sinLoad = SinLoad(0.1, Duration.ofSeconds(5)))
-            "s_0.1_30s" -> LoadProfile(ratePerSecond = 10, sinLoad = SinLoad(0.1, Duration.ofSeconds(30)))
-            else -> LoadProfile(ratePerSecond = 1)
+    private fun loadProfile(key: String?, ratePerSec: Int): LoadProfile {
+        if (key == null) {
+            return LoadProfile(ratePerSecond = ratePerSec)
+        }
+        return LoadProfile(ratePerSecond = ratePerSec, sinLoad = key.parseSin())
+    }
+
+    fun String?.parseSin(): SinLoad? = when (this) {
+        null -> null
+        "s_n" -> null
+        else -> {
+            val parts = this.split("_")
+            if (parts.size != 3) {
+                throw IllegalArgumentException("Invalid sin load format")
+            } else {
+                SinLoad(parts[1].toDouble(), Duration.ofSeconds(parts[2].toLong()))
+            }
         }
     }
 }

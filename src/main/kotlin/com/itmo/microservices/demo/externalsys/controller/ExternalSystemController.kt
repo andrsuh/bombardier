@@ -18,7 +18,6 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import javax.annotation.PostConstruct
 import kotlin.random.Random
 
@@ -35,10 +34,7 @@ class ExternalSystemController(
         val mappingScope = CoroutineScope(Executors.newFixedThreadPool(8).asCoroutineDispatcher())
     }
 
-    private val invoices = ConcurrentHashMap<String, AtomicInteger>()
     private val accounts = ConcurrentHashMap<String, Account>()
-
-    private val blockList = ConcurrentHashMap<String, Long>()
 
     @PostConstruct
     fun init() {
@@ -239,6 +235,46 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt(),
                 exposedAverageProcessingTime = Duration.ofMillis(800)
             )
+
+            val accName17 = "acc-17"
+            accounts["${service.name}-$accName17"] = Account(
+                service.name,
+                accName17,
+                null,
+                speedLimits = SpeedLimits(30, 40),
+                slo = Slo(lowerLimitInvocationMillis = 980, upperLimitInvocationMillis = 1000),
+                rateLimiter = LeakingBucketMeterRateLimiter(30, Duration.ofMillis(1000), 30),
+                exposedAverageProcessingTime = Duration.ofMillis(950),
+                price = (basePrice * 0.3).toInt()
+            )
+
+            val accName18 = "acc-18"
+            accounts["${service.name}-$accName18"] = Account(
+                service.name,
+                accName18,
+                null,
+                speedLimits = SpeedLimits(110, 10_000),
+                slo = Slo(upperLimitInvocationMillis = 2000),
+                price = (basePrice * 0.3).toInt()
+            )
+
+
+        val accName19 = "acc-19"
+        accounts["${service.name}-$accName19"] = Account(
+            service.name,
+            accName19,
+            null,
+            speedLimits = SpeedLimits(200, 20_000),
+            slo = Slo(
+                upperLimitInvocationMillis = 200,
+            ),
+            blocking = Blocking(
+                probability = 0.00025,
+                minTime = Duration.ofSeconds(40),
+                maxTime = Duration.ofSeconds(60)
+            ),
+            price = (basePrice * 0.25).toInt()
+        )
         }
     }
 
@@ -379,13 +415,19 @@ class ExternalSystemController(
         val accountName: String,
         val callbackPath: String?,
         val slo: Slo = Slo(),
+        val blocking: Blocking = Blocking(),
         val exposedAverageProcessingTime: Duration = Duration.ofMillis(slo.upperLimitInvocationMillis / 2),
         val speedLimits: SpeedLimits,
         val network: Network = Network(),
         val price: Int,
         val rateLimiter: RateLimiter = FixedWindowRateLimiter(speedLimits.rps, 1, TimeUnit.SECONDS),
         val window: SemaphoreOngoingWindow = SemaphoreOngoingWindow(speedLimits.win),
-    )
+        var unavailableTill: Long? = null,
+    ) {
+        fun unlock() {
+            unavailableTill = null
+        }
+    }
 
     data class SpeedLimits(
         val rps: Int = 5,
@@ -400,12 +442,17 @@ class ExternalSystemController(
     data class Slo(
         val lowerLimitInvocationMillis: Long = 0,
         val upperLimitInvocationMillis: Long = 10_000,
-        val accountBlockingProbability: Double = 0.0,
-        val accountBlockingMaxTime: Duration = Duration.ofMillis(1000),
         val timeLimitsBreachingProbability: Double = 0.0,
         val timeLimitsBreachingMinTime: Duration = Duration.ofMillis(0),
         val timeLimitsBreachingMaxTime: Duration = Duration.ofMillis(1000),
         val errorResponseProbability: Double = -1.0,
+    )
+
+    data class Blocking(
+        val probability: Double = 0.0,
+        val minTime: Duration = Duration.ofMillis(1000),
+        val maxTime: Duration = Duration.ofMillis(1000),
+        val codes: List<HttpStatus> = listOf(GATEWAY_TIMEOUT, SERVICE_UNAVAILABLE),
     )
 
     @PutMapping("/process/bulk")
@@ -414,7 +461,9 @@ class ExternalSystemController(
         @RequestParam timeout: Duration?,
     ): ResponseEntity<BulkResponse> {
         val (code, resp) = try {
-            withTimeout(timeout?.toMillis() ?: defaultTimeout) {
+            val account = getAccount(request.serviceName, request.accountName)
+            val effectiveTimeout = if (account.blocking.probability > 0) defaultTimeout else (timeout?.toMillis() ?: defaultTimeout)
+            withTimeout(effectiveTimeout) {
                 processInternal(request)
             }
         } catch (e: TimeoutCancellationException) {
@@ -434,7 +483,9 @@ class ExternalSystemController(
         @RequestParam timeout: Duration?,
     ): ResponseEntity<Response> {
         val (code, bulkResp) = try {
-            withTimeout(timeout?.toMillis() ?: defaultTimeout) {
+            val account = getAccount(serviceName, accountName)
+            val effectiveTimeout = if (account.blocking.probability > 0) defaultTimeout else (timeout?.toMillis() ?: defaultTimeout)
+            withTimeout(effectiveTimeout) {
                 processInternal(
                     BulkRequest(
                         serviceName,
@@ -462,16 +513,27 @@ class ExternalSystemController(
 
         val start = System.currentTimeMillis()
 
-        val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
+        val account = getAccount(serviceName, accountName)
 
         Metrics
             .withTags(Metrics.serviceLabel to serviceName, "accountName" to accountName)
             .externalSysChargeAmountRecord(account.price * bulk.requests.size)
 
+        blockDelay(account)?.let {
+            delay(it)
+            account.unlock()
+            val code = account.blocking.codes.random()
+            PromMetrics.externalSysDurationRecord(
+                serviceName,
+                accountName,
+                code.name,
+                System.currentTimeMillis() - start
+            )
+            return code to bulk.failBulk("Unexpected: ${code.name}")
+        }
 
         // if we perform blocking logic before RL acquisition, we will non-intentionally break the speed limits
         if (!account.rateLimiter.tick()) {
-            performBlockingLogic(account)
             networkLatency(account)
 
             PromMetrics.externalSysDurationRecord(
@@ -485,8 +547,6 @@ class ExternalSystemController(
 
         try {
             if (account.window.tryAcquire()) {
-                performBlockingLogic(account)
-
                 val duration = if (Random.nextDouble(0.0, 1.0) < account.slo.timeLimitsBreachingProbability) {
                     Random.nextLong(account.slo.timeLimitsBreachingMinTime.toMillis(), account.slo.timeLimitsBreachingMaxTime.toMillis())
                 } else Random.nextLong(account.slo.lowerLimitInvocationMillis, account.slo.upperLimitInvocationMillis)
@@ -496,6 +556,8 @@ class ExternalSystemController(
                 val resp = bulk.requests.map {
                     val result = Random.nextDouble(0.0, 1.0) > account.slo.errorResponseProbability
 
+                    val paymentTs = System.currentTimeMillis()
+
                     mappingScope.launch { // better to make channel + background coroutine that will wake up payments
                         try {
                             if (result) { // todo sukhoa we have to unblock it for the error also no?
@@ -503,7 +565,7 @@ class ExternalSystemController(
                                     merger.putSecondValueAndWaitForFirst(
                                         UUID.fromString(it.paymentId),
                                         PaymentLogRecord(
-                                            System.currentTimeMillis(),
+                                            paymentTs,
                                             PaymentStatus.SUCCESS, it.amount, UUID.fromString(it.paymentId)
                                         )
                                     )
@@ -513,7 +575,7 @@ class ExternalSystemController(
                     }
 
                     logger.info("[external] - Transaction ${it.transactionId}. Duration: $duration")
-                    Response(it.transactionId, it.paymentId, result)
+                    Response(it.transactionId, it.paymentId, result, if (result) null else "Temporary error")
                 }.toBulkResponse()
 
 
@@ -528,8 +590,7 @@ class ExternalSystemController(
                     )
                 }
             } else {
-                performBlockingLogic(account)
-                networkLatency(account) // todo sukhoa once for the batch
+                networkLatency(account)
                 PromMetrics.externalSysDurationRecord(
                     serviceName,
                     accountName,
@@ -553,19 +614,23 @@ class ExternalSystemController(
         }
     }
 
-    private suspend fun performBlockingLogic(account: Account) { //todo sukhoa extension of the blocklist
-        val accountName = account.accountName
+    private fun getAccount(
+        serviceName: String,
+        accountName: String
+    ): Account {
+        val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
+        return account
+    }
 
-        if (Random.nextDouble(0.0, 1.0) < account.slo.accountBlockingProbability) {
-            blockList[accountName] =
-                System.currentTimeMillis() + Random.nextLong(account.slo.accountBlockingMaxTime.toMillis())
+    private suspend fun blockDelay(account: Account): Long? {
+        if (account.unavailableTill == null && Random.nextDouble(0.0, 1.0) < account.blocking.probability) {
+            account.unavailableTill = System.currentTimeMillis() + Random.nextLong(account.blocking.minTime.toMillis(), account.blocking.maxTime.toMillis())
         }
 
-        val blockUntil = blockList[accountName]
-        if (blockUntil != null) {
-            delay(blockUntil - System.currentTimeMillis())
-            blockList.remove(accountName)
-        }
+        val blockedTill = account.unavailableTill
+        return if (blockedTill != null) {
+            blockedTill - System.currentTimeMillis()
+        } else null
     }
 
     suspend fun networkLatency(account: Account) {

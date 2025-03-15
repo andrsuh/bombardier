@@ -11,6 +11,7 @@ import com.itmo.microservices.demo.common.logging.EventLoggerWrapper
 import com.itmo.microservices.demo.common.logging.lib.logging.EventLogger
 import com.itmo.microservices.demo.common.metrics.Metrics
 import kotlinx.coroutines.*
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.*
@@ -23,6 +24,7 @@ class OrderPaymentStage(
     companion object {
         const val paymentOutcome = "outcome"
         const val paymentFailureReason = "failReason"
+        val logger = LoggerFactory.getLogger(OrderPaymentStage::class.java)
     }
 
     @InjectEventLogger
@@ -43,11 +45,16 @@ class OrderPaymentStage(
 
         eventLogger.info(I_PAYMENT_STARTED, testCtx.orderId)
 
-        val paymentProcessingTimeMillis = if (testCtx.variatePaymentProcessingTime) {
-            Random.nextLong(2_000, testCtx.paymentProcessingTimeMillis)
-        } else {
+        val paymentProcessingTimeMillis = if (testCtx.paymentProcessingTimeAmplitudeMillis == 0L) {
             testCtx.paymentProcessingTimeMillis
+        } else {
+            Random.nextLong(
+                testCtx.paymentProcessingTimeMillis - testCtx.paymentProcessingTimeAmplitudeMillis,
+                testCtx.paymentProcessingTimeMillis + testCtx.paymentProcessingTimeAmplitudeMillis
+            )
         }
+
+        logger.trace("processing time {}", paymentProcessingTimeMillis)
 
         val paymentDeadline = System.currentTimeMillis() + paymentProcessingTimeMillis
         val paymentSubmissionDto = externalServiceApi.payOrder(
@@ -71,7 +78,7 @@ class OrderPaymentStage(
             eventLogger.warn(
                 E_PAYMENT_TIMEOUT_EXCEEDED,
                 testCtx.orderId,
-                Duration.ofMillis(paymentProcessingTimeMillis).toSeconds(),
+                paymentProcessingTimeMillis,
                 Duration.ofMillis(System.currentTimeMillis() - paymentSubmissionDto.timestamp)
             )
             Metrics
@@ -155,7 +162,7 @@ class OrderPaymentStage(
                     eventLogger.error(
                         E_PAYMENT_TIMEOUT_EXCEEDED,
                         testCtx.orderId,
-                        Duration.ofMillis(paymentProcessingTimeMillis).toSeconds(),
+                        paymentProcessingTimeMillis,
                         Duration.ofMillis(paymentLogRecord.timestamp - paymentSubmissionDto.timestamp)
                     )
                     Metrics

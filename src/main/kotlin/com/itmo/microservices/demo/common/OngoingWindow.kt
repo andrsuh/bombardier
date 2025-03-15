@@ -41,7 +41,7 @@ class SemaphoreOngoingWindow(
 ) {
     private val window = Semaphore(maxWinSize)
 
-    suspend fun tryAcquire(): Boolean {
+    fun tryAcquire(): Boolean {
         return window.tryAcquire()
     }
 

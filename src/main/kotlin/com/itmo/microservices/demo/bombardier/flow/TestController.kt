@@ -146,15 +146,16 @@ class TestController(
 
         val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
 //        for (i in 1..250_000) {
-        val testContext = TestContext(
-            serviceName = serviceName,
-            launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
-            totalTestsNumber = testingFlow.testParams.numberOfTests,
-            paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
-            variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
-            testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-            testImmutableInfo = testInfo,
-        )
+//        val testContext = TestContext(
+//            serviceName = serviceName,
+//            launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+//            totalTestsNumber = testingFlow.testParams.numberOfTests,
+//            paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
+//            variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
+//            testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+//            testImmutableInfo = testInfo,
+//            paymentProcessingTimeAmplitudeMillis = testingFlow.testParams.paymentProcessingTimeAmplitude,
+//        )
 
         while (true) {
             val testNum = testingFlow.testsStarted.getAndIncrement()
@@ -170,6 +171,17 @@ class TestController(
                 }
                 Thread.sleep(1000 - System.currentTimeMillis() % 1000)
             }
+
+            val testContext = TestContext(
+                serviceName = serviceName,
+                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+                totalTestsNumber = testingFlow.testParams.numberOfTests,
+                paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
+                variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
+                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+                testImmutableInfo = testInfo,
+                paymentProcessingTimeAmplitudeMillis = testingFlow.testParams.paymentProcessingTimeAmplitude,
+            )
 
             testLaunchScope.launch(testContext) {
                 testContext.testStartTime = System.currentTimeMillis()
@@ -244,6 +256,7 @@ data class TestContext(
     var wasChangedAfterFinalization: Boolean = false,
     var launchTestsRatePerSec: Int,
     var paymentProcessingTimeMillis: Long,
+    var paymentProcessingTimeAmplitudeMillis: Long,
     val variatePaymentProcessingTime: Boolean,
     var totalTestsNumber: Int,
     val testSuccessByThePaymentFact: Boolean = false,
@@ -286,6 +299,7 @@ data class TestParameters(
     val testSuccessByThePaymentFact: Boolean = true, // todo sukhoa effectively it is always true as we don't analyse it on payment order stage
     val stopAfterOrderCreation: Boolean = false,
     val paymentProcessingTimeMillis: Long = 1000,
+    val paymentProcessingTimeAmplitude: Long = 0,
     val variatePaymentProcessingTime: Boolean = false,
     val loadProfile: LoadProfile,
 )
