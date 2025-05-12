@@ -130,32 +130,54 @@ open class ExternalServiceApiCommunicator(
 //            httpClientsManager.getClient(externalApiMethod).sendAsync(req, HttpResponse.BodyHandlers.ofString())
             httpClientsManager.getClient(testId).sendAsync(req, HttpResponse.BodyHandlers.ofString())
                 .thenApplyAsync({ resp ->
-                    if (HttpStatus.Series.resolve(resp.statusCode()) == HttpStatus.Series.SUCCESSFUL) {
-                        PromMetrics.externalMethodDurationRecord(
-                            serviceName,
-                            externalApiMethod,
-                            "OK",
-                            System.currentTimeMillis() - submissionTime
-                        )
-                        try {
-                            it.resume(TrimmedResponse(resp.body(), resp.statusCode(), req))
-                        } catch (t: Throwable) {
-                            it.resumeWithException(t)
-                        }
-                    } else {
-                        PromMetrics.externalMethodDurationRecord(
-                            serviceName,
-                            externalApiMethod, "CODE-${resp.statusCode()}", System.currentTimeMillis() - submissionTime
-                        )
-
-                        it.resumeWithException(
-                            InvalidExternalServiceResponseException(
-                                resp.statusCode(),
-                                "${resp.request().method()} ${
-                                    resp.request().uri()
-                                } External service returned non-OK code: ${resp.statusCode()}\n\n${resp.body()}"
+                    when {
+                        HttpStatus.Series.resolve(resp.statusCode()) == HttpStatus.Series.SUCCESSFUL -> {
+                            PromMetrics.externalMethodDurationRecord(
+                                serviceName,
+                                externalApiMethod,
+                                "OK",
+                                System.currentTimeMillis() - submissionTime
                             )
-                        )
+                            try {
+                                it.resume(TrimmedResponse(resp.body(), resp.statusCode(), req))
+                            } catch (t: Throwable) {
+                                it.resumeWithException(t)
+                            }
+                        }
+
+                        resp.statusCode() == HttpStatus.TOO_MANY_REQUESTS.value() -> {
+                            PromMetrics.externalMethodDurationRecord(
+                                serviceName,
+                                externalApiMethod,
+                                "CODE-${resp.statusCode()}",
+                                System.currentTimeMillis() - submissionTime
+                            )
+
+                            it.resumeWithException(
+                                TooManyRequestsException(
+                                    "429 - Too many requests",
+                                    resp.headers().firstValueAsLong(HttpHeaders.RETRY_AFTER).orElse(0L),
+                                )
+                            )
+                        }
+
+                        else -> {
+                            PromMetrics.externalMethodDurationRecord(
+                                serviceName,
+                                externalApiMethod,
+                                "CODE-${resp.statusCode()}",
+                                System.currentTimeMillis() - submissionTime
+                            )
+
+                            it.resumeWithException(
+                                InvalidExternalServiceResponseException(
+                                    resp.statusCode(),
+                                    "${resp.request().method()} ${
+                                        resp.request().uri()
+                                    } External service returned non-OK code: ${resp.statusCode()}\n\n${resp.body()}"
+                                )
+                            )
+                        }
                     }
                 }, httpClientCallbackExecutor)
                 .exceptionallyAsync({ th ->

@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 
 @Service
@@ -110,7 +111,8 @@ class TestController(
         val testParams: TestParameters,
         val testFlowCoroutine: CompletableJob,
         val testsStarted: AtomicInteger = AtomicInteger(1),
-        val testsFinished: AtomicInteger = AtomicInteger(0)
+        val testsFinished: AtomicInteger = AtomicInteger(0),
+        var slowDownTill: AtomicLong = AtomicLong(0)
     )
 
     private fun launchTestCycle(
@@ -166,7 +168,7 @@ class TestController(
             }
 
             while (true) {
-                if (rateLimiter.tick()) {
+                if (rateLimiter.tick() && testingFlow.slowDownTill.get() < System.currentTimeMillis()) {
                     break
                 }
                 Thread.sleep(1000 - System.currentTimeMillis() % 1000)
@@ -213,14 +215,25 @@ class TestController(
 //        ) {
         try {
             testStages.forEach { stage ->
-                val stageResult = stage.run(testInfo, stuff.userManagement, stuff.api)
-                if (stageResult != CONTINUE) {
-                    PromMetrics.testDurationRecord(
-                        testInfo.serviceName,
-                        stageResult.name,
-                        System.currentTimeMillis() - testStartTime
-                    )
-                    return
+                when (val stageResult = stage.run(testInfo, stuff.userManagement, stuff.api)) {
+                    is TestStage.TestContinuationType.Rejected -> {
+                        testingFlow.testsStarted.decrementAndGet()
+                        val cur = testingFlow.slowDownTill.get()
+                        if (cur < (stageResult.retryAfter)) {
+                            testingFlow.slowDownTill.set(stageResult.retryAfter) // race condition
+                            logger.info("Test of ${testInfo.serviceName} asked to slow down for ${(stageResult.retryAfter) - System.currentTimeMillis()}ms")
+                        }
+                        return
+                    }
+                    CONTINUE -> {}
+                    else -> {
+                        PromMetrics.testDurationRecord(
+                            testInfo.serviceName,
+                            stageResult.javaClass.simpleName,
+                            System.currentTimeMillis() - testStartTime
+                        )
+                        return
+                    }
                 }
             }
 

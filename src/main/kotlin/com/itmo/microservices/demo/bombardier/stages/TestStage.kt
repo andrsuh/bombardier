@@ -116,12 +116,17 @@ interface TestStage {
 
     class TestStageFailedException(message: String) : IllegalStateException(message)
 
-    enum class TestContinuationType {
-        CONTINUE,
-        FAIL,
-        ERROR,
-        RETRY,
-        STOP;
+    sealed class TestContinuationType {
+        class Rejected(
+            val reason: String?,
+            val retryAfter: Long = 0,
+        ) : TestContinuationType()
+
+        object CONTINUE: TestContinuationType()
+        object FAIL: TestContinuationType()
+        object ERROR: TestContinuationType()
+        object RETRY: TestContinuationType()
+        object STOP: TestContinuationType()
 
         fun iSFailState(): Boolean {
             return this == FAIL || this == ERROR

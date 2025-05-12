@@ -51,13 +51,20 @@ class ExternalSystemController(
 
             // default 1
             val basePrice = 100
-            val accName1 = "default-1"
+            val accName1 = "acc-1"
             accounts["${service.name}-$accName1"] = Account(
                 service.name,
                 accName1,
                 null,
-                slo = Slo(upperLimitInvocationMillis = 2),
-                speedLimits = SpeedLimits(3000, 50_000),
+                slo = Slo(
+                    upperLimitInvocationMillis = 0,
+                    timeLimitsBreachingProbability = 1.0,
+                    timeLimitsBreachingMinTime = Duration.ofMillis(995),
+                    timeLimitsBreachingMaxTime = Duration.ofMillis(998),
+                ),
+                speedLimits = SpeedLimits(15, 1000),
+                rateLimiter = LeakingBucketMeterRateLimiter(18, Duration.ofSeconds(1), 18),
+                exposedAverageProcessingTime = Duration.ofSeconds(1),
                 price = basePrice
             )
 
@@ -259,22 +266,63 @@ class ExternalSystemController(
             )
 
 
-        val accName19 = "acc-19"
-        accounts["${service.name}-$accName19"] = Account(
-            service.name,
-            accName19,
-            null,
-            speedLimits = SpeedLimits(200, 20_000),
-            slo = Slo(
-                upperLimitInvocationMillis = 200,
-            ),
-            blocking = Blocking(
-                probability = 0.00025,
-                minTime = Duration.ofSeconds(40),
-                maxTime = Duration.ofSeconds(60)
-            ),
-            price = (basePrice * 0.25).toInt()
-        )
+            val accName19 = "acc-19"
+            accounts["${service.name}-$accName19"] = Account(
+                service.name,
+                accName19,
+                null,
+                speedLimits = SpeedLimits(200, 20_000),
+                slo = Slo(
+                    upperLimitInvocationMillis = 200,
+                ),
+                blocking = Blocking(
+                    probability = 0.00025,
+                    minTime = Duration.ofSeconds(40),
+                    maxTime = Duration.ofSeconds(60)
+                ),
+                price = (basePrice * 0.25).toInt()
+            )
+
+            val accName20 = "acc-20"
+            accounts["${service.name}-$accName20"] = Account(
+                service.name,
+                accName20,
+                null,
+                speedLimits = SpeedLimits(100, 100),
+                slo = Slo(
+                    upperLimitInvocationMillis = 2000,
+                    errorResponseProbability = 0.1,
+                ),
+                price = (basePrice * 0.35).toInt()
+            )
+
+            val accName21 = "acc-21"
+            accounts["${service.name}-$accName21"] = Account(
+                service.name,
+                accName21,
+                null,
+                speedLimits = SpeedLimits(30, 600),
+                slo = Slo(
+                    upperLimitInvocationMillis = 20_000,
+                ),
+                price = (basePrice * 0.20).toInt()
+            )
+
+            val accName22 = "acc-22"
+            accounts["${service.name}-$accName22"] = Account(
+                service.name,
+                accName22,
+                null,
+                slo = Slo(
+                    upperLimitInvocationMillis = 1800,
+                    timeLimitsBreachingProbability = 0.15,
+                    timeLimitsBreachingMinTime = Duration.ofSeconds(5),
+                    timeLimitsBreachingMaxTime = Duration.ofSeconds(6)
+                ),
+                exposedAverageProcessingTime = Duration.ofMillis(1600),
+                speedLimits = SpeedLimits(1100, 20_000),
+                price = (basePrice * 0.05).toInt()
+            )
         }
     }
 

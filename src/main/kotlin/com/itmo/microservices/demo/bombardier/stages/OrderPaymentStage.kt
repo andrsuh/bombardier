@@ -4,6 +4,7 @@ import com.itmo.microservices.demo.common.logging.lib.annotations.InjectEventLog
 import com.itmo.microservices.demo.bombardier.external.PaymentStatus
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
+import com.itmo.microservices.demo.bombardier.external.communicator.TooManyRequestsException
 import com.itmo.microservices.demo.bombardier.flow.*
 import com.itmo.microservices.demo.bombardier.logging.OrderPaymentNotableEvents.*
 import com.itmo.microservices.demo.common.SuspendableAwaiter
@@ -57,11 +58,23 @@ class OrderPaymentStage(
         logger.trace("processing time {}", paymentProcessingTimeMillis)
 
         val paymentDeadline = System.currentTimeMillis() + paymentProcessingTimeMillis
-        val paymentSubmissionDto = externalServiceApi.payOrder(
-            testCtx.userId!!,
-            testCtx.orderId!!,
-            paymentDeadline
-        )
+
+        val paymentSubmissionDto = try {
+            externalServiceApi.payOrder(
+                testCtx.userId!!,
+                testCtx.orderId!!,
+                paymentDeadline
+            )
+        } catch (e: TooManyRequestsException) {
+            Metrics
+                .withTags(
+                    Metrics.serviceLabel to testCtx.serviceName,
+                    paymentOutcome to "REJECTED",
+                    paymentFailureReason to "TOO_MANY_REQUESTS"
+                )
+            return TestStage.TestContinuationType.Rejected(e.message, e.retryAfter ?: 0)
+        }
+
         eventLog.info(
             I_STARTED_PAYMENT,
             testCtx.orderId!!,
@@ -81,6 +94,7 @@ class OrderPaymentStage(
                 paymentProcessingTimeMillis,
                 Duration.ofMillis(System.currentTimeMillis() - paymentSubmissionDto.timestamp)
             )
+
             Metrics
                 .withTags(
                     Metrics.serviceLabel to testCtx.serviceName,

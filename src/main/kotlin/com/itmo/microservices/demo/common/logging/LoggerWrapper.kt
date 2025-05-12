@@ -13,6 +13,10 @@ class LoggerWrapper(
         logger.info(append(testServiceFiledName, serviceName), msg)
     }
 
+    fun warn(msg: String) {
+        logger.warn(append(testServiceFiledName, serviceName), msg)
+    }
+
     fun error(msg: String) {
         logger.error(append(testServiceFiledName, serviceName), msg)
     }
