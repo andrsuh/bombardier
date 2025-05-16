@@ -19,7 +19,7 @@ class ExternalServiceSimulator(
     private val itemStorage: ItemStorage
 ) : ExternalServiceApi {
 
-    override val descriptor = ServiceDescriptor("Simulator", "https://youtube.com/watch?v=dQw4w9WgXcQ")
+    override val descriptor = ServiceDescriptor("Simulator", "https://youtube.com/watch?v=dQw4w9WgXcQ", "", 123412345L)
 
     private val financialLog = ConcurrentHashMap<UUID, MutableList<UserAccountFinancialLogRecord>>()
     private val deliveryLog = ConcurrentHashMap<UUID, DeliveryInfoRecord>()
