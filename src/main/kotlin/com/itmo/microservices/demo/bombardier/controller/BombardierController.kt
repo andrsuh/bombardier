@@ -5,7 +5,7 @@ import com.itmo.microservices.demo.bombardier.dto.NewServiceRequest
 import com.itmo.microservices.demo.bombardier.dto.RunTestRequest
 import com.itmo.microservices.demo.bombardier.dto.RunningTestsResponse
 import com.itmo.microservices.demo.bombardier.dto.toExtended
-import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
+import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServicesManager
 import com.itmo.microservices.demo.bombardier.flow.LoadProfile
 import com.itmo.microservices.demo.bombardier.flow.SinLoad
 import com.itmo.microservices.demo.bombardier.flow.TestController
@@ -22,7 +22,7 @@ import java.time.Duration
 @RequestMapping("/test")
 class BombardierController(
     private val testApi: TestController,
-    private val services: KnownServices
+    private val services: TestedServicesManager
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(BombardierController::class.java)
@@ -88,6 +88,7 @@ class BombardierController(
                 paymentProcessingTimeAmplitude = request.ptvaMillis,
                 variatePaymentProcessingTime = request.variatePaymentProcessingTime,
                 loadProfile = loadProfile(request.profile, request.ratePerSecond),
+                token = request.token,
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()
@@ -152,25 +153,25 @@ class BombardierController(
     )
     fun getAllServices() = services.all().associate { it.name to it.url }
 
-    @PostMapping("/newService")
-    @Operation(
-        summary = "Add new service to list",
-        responses = [
-            ApiResponse(description = "OK", responseCode = "200"),
-            ApiResponse(
-                description = "the url to service is invalid",
-                responseCode = "400",
-            )
-        ]
-    )
-    fun newService(@RequestBody request: NewServiceRequest) {
+//    @PostMapping("/newService")
+//    @Operation(
+//        summary = "Add new service to list",
+//        responses = [
+//            ApiResponse(description = "OK", responseCode = "200"),
+//            ApiResponse(
+//                description = "the url to service is invalid",
+//                responseCode = "400",
+//            )
+//        ]
+//    )
+//    fun newService(@RequestBody request: NewServiceRequest) {
 //        val url = try {
 //            URL(request.url)
 //        } catch (t: Throwable) {
 //            throw InvalidServiceUrlException()
 //        }
-        services.add(ServiceDescriptor(request.name, request.url))
-    }
+//        services.add(ServiceDescriptor(request.name, request.url, ))
+//    }
 
     private fun loadProfile(key: String?, ratePerSec: Int): LoadProfile {
         if (key == null) {

@@ -2,7 +2,7 @@ package com.itmo.microservices.demo.externalsys.controller
 
 import com.itmo.microservices.demo.bombardier.external.PaymentLogRecord
 import com.itmo.microservices.demo.bombardier.external.PaymentStatus
-import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
+import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServicesManager
 import com.itmo.microservices.demo.common.*
 import com.itmo.microservices.demo.common.metrics.Metrics
 import com.itmo.microservices.demo.common.metrics.PromMetrics
@@ -24,7 +24,7 @@ import kotlin.random.Random
 @RestController
 @RequestMapping("/external")
 class ExternalSystemController(
-    private val services: KnownServices,
+    private val services: TestedServicesManager,
     private val merger: SuspendableAwaiter<UUID, Boolean, PaymentLogRecord>
 ) {
     companion object {

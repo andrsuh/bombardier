@@ -13,22 +13,25 @@ import org.springframework.web.bind.annotation.ResponseStatus
 @ResponseStatus(HttpStatus.NOT_FOUND)
 class ServiceDescriptorNotFoundException(name: String) : Exception("Descriptor for service $name was not found")
 
+@ResponseStatus(HttpStatus.NOT_FOUND)
+class TokenInvalidException(token: String) : Exception("Token $token invalid")
+
 @ResponseStatus(HttpStatus.BAD_REQUEST)
 class ServiceDescriptorExistsException() : Exception("descriptor already exists")
 
 class KnownServicesOverflow : Exception("too much services")
 
-data class ServiceWithApiAndAdditional(val api: ExternalServiceApi, val userManagement: UserManagement)
+data class ServiceProxy(val api: ExternalServiceApi, val userManagement: UserManagement)
 
 
 private const val THRESHOLD_STORAGE = 100
 
 @Service
-class KnownServices(
+class TestedServicesManager(
     private val props: BombardierProperties
 ) {
     val storage = mutableListOf<ServiceDescriptor>()
-    private val apis = mutableMapOf<ServiceDescriptor, ServiceWithApiAndAdditional>() // todo make concurrent
+    private val apis = mutableMapOf<ServiceDescriptor, ServiceProxy>() // todo make concurrent
 
     init {
         storage.addAll(props.getDescriptors())
@@ -40,23 +43,26 @@ class KnownServices(
         if (storage.size > THRESHOLD_STORAGE) {
             throw KnownServicesOverflow()
         }
-        if (findByName(descriptor.name) != null) {
+        if (storage.any { it.name == descriptor.name || it.url == descriptor.url }) {
             throw ServiceDescriptorExistsException()
         }
+
         storage.add(descriptor)
     }
 
-    fun descriptorFromName(name: String): ServiceDescriptor {
-        return findByName(name) ?: throw ServiceDescriptorNotFoundException(name)
+    fun descriptorByName(name: String): ServiceDescriptor {
+        return storage.firstOrNull { it.name == name } ?: throw ServiceDescriptorNotFoundException(name)
     }
 
-    private fun findByName(name: String) = storage.firstOrNull { it.name == name }
+    fun descriptorByToken(token: String): ServiceDescriptor {
+        return storage.firstOrNull { it.token == token } ?: throw TokenInvalidException(token)
+    }
 
-    fun getStuff(name: String): ServiceWithApiAndAdditional {
-        val descriptor = descriptorFromName(name)
+    fun getServiceProxy(name: String): ServiceProxy {
+        val descriptor = descriptorByName(name)
         return apis.getOrPut(descriptor) {
             val api = RealExternalService(descriptor, UserStorage(), props)
-            ServiceWithApiAndAdditional(api, UserManagement(api))
+            ServiceProxy(api, UserManagement(api))
         }
     }
 }

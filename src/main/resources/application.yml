@@ -47,5 +47,11 @@ management:
 bombardier:
   auth-enabled: false
   teams:
-    - name: "onlineStore"
-      url: "http://${TEST_SERVICE_IP:127.0.0.1}:8081"
+    - name: "onlineStore-1"
+      url: "http://${TEST_SERVICE_IP:127.0.0.1}:9010"
+      token: "copaty2FnjdG9rZW4="
+      expiresAt: 1758043124000
+    - name: "onlineStore-2"
+      url: "http://${TEST_SERVICE_IP:127.0.0.1}:9001"
+      token: "copaTy2FnjdG9rZW4="
+      expiresAt: 1758043124000

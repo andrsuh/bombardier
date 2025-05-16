@@ -2,8 +2,8 @@ package com.itmo.microservices.demo.bombardier.flow
 
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
 import com.itmo.microservices.demo.bombardier.exception.BadRequestException
-import com.itmo.microservices.demo.bombardier.external.knownServices.KnownServices
-import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceWithApiAndAdditional
+import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServicesManager
+import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceProxy
 import com.itmo.microservices.demo.bombardier.stages.*
 import com.itmo.microservices.demo.bombardier.stages.TestStage.TestContinuationType.CONTINUE
 import com.itmo.microservices.demo.common.AllAllowCompositeRateLimiter
@@ -29,7 +29,7 @@ import kotlin.coroutines.CoroutineContext
 
 @Service
 class TestController(
-    private val knownServices: KnownServices,
+    private val testedServicesManager: TestedServicesManager,
     val choosingUserAccountStage: ChoosingUserAccountStage,
     val orderCreationStage: OrderCreationStage,
     val orderPaymentStage: OrderPaymentStage,
@@ -79,15 +79,15 @@ class TestController(
             throw BadRequestException("There is no such feature launch several flows for the service in parallel :(")
         }
 
-        val descriptor = knownServices.descriptorFromName(params.serviceName)
-        val stuff = knownServices.getStuff(params.serviceName)
+        val descriptor = testedServicesManager.descriptorByToken(params.token)
+        val proxy = testedServicesManager.getServiceProxy(params.serviceName)
 
         runBlocking {
-            stuff.userManagement.createUsersPool(params.numberOfUsers)
+            proxy.userManagement.createUsersPool(params.numberOfUsers)
         }
 
         logger.info("Launch coroutine for $descriptor")
-        launchTestCycle(descriptor, stuff)
+        launchTestCycle(descriptor, proxy)
     }
 
     fun getTestingFlowForService(serviceName: String): TestingFlow {
@@ -117,7 +117,7 @@ class TestController(
 
     private fun launchTestCycle(
         descriptor: ServiceDescriptor,
-        stuff: ServiceWithApiAndAdditional,
+        serviceProxy: ServiceProxy,
     ) {
         val logger = LoggerWrapper(log, descriptor.name)
         val serviceName = descriptor.name
@@ -188,7 +188,7 @@ class TestController(
             testLaunchScope.launch(testContext) {
                 testContext.testStartTime = System.currentTimeMillis()
                 logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                launchNewTestFlow(testContext, testingFlow, descriptor, stuff, testStages)
+                launchNewTestFlow(testContext, testingFlow, descriptor, serviceProxy, testStages)
             }
         }
 //        }
@@ -198,7 +198,7 @@ class TestController(
         testInfo: TestContext,
         testingFlow: TestingFlow,
         descriptor: ServiceDescriptor,
-        stuff: ServiceWithApiAndAdditional,
+        serviceProxy: ServiceProxy,
         testStages: MutableList<TestStage>
     ) {
         val logger = LoggerWrapper(log, descriptor.name)
@@ -215,7 +215,7 @@ class TestController(
 //        ) {
         try {
             testStages.forEach { stage ->
-                when (val stageResult = stage.run(testInfo, stuff.userManagement, stuff.api)) {
+                when (val stageResult = stage.run(testInfo, serviceProxy.userManagement, serviceProxy.api)) {
                     is TestStage.TestContinuationType.Rejected -> {
                         testingFlow.testsStarted.decrementAndGet()
                         val cur = testingFlow.slowDownTill.get()
@@ -315,6 +315,7 @@ data class TestParameters(
     val paymentProcessingTimeAmplitude: Long = 0,
     val variatePaymentProcessingTime: Boolean = false,
     val loadProfile: LoadProfile,
+    val token: String,
 )
 
 data class LoadProfile(

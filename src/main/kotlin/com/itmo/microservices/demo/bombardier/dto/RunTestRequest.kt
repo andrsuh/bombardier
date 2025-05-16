@@ -11,4 +11,5 @@ data class RunTestRequest(
     val ptvaMillis: Long = 0,
     val variatePaymentProcessingTime: Boolean = false,
     val profile: String? = null,
+    val token: String,
 )
