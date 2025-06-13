@@ -33,6 +33,11 @@ class UserManagement(
                 log.error("User has not been created", it)
             }
         }
+
+        if (userIdsByService.isEmpty()) {
+            throw IllegalStateException("No users were created for service $serviceName")
+        }
+
         return userIdsByService
     }
 
