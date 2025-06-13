@@ -12,4 +12,5 @@ data class RunTestRequest(
     val variatePaymentProcessingTime: Boolean = false,
     val profile: String? = null,
     val token: String,
+    val onPremises: Boolean = false,
 )

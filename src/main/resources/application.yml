@@ -47,6 +47,10 @@ management:
 bombardier:
   auth-enabled: false
   teams:
+    - name: "on_premises"
+      url: "http://${TEST_SERVICE_IP:127.0.0.1}:18080"
+      token: "on_premises"
+      expiresAt: 1899043124000
     - name: "onlineStore-1"
       url: "http://${TEST_SERVICE_IP:127.0.0.1}:9010"
       token: "copaty2FnjdG9rZW4="

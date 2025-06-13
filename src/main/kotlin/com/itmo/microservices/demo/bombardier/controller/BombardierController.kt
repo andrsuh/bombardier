@@ -7,6 +7,7 @@ import com.itmo.microservices.demo.bombardier.dto.RunningTestsResponse
 import com.itmo.microservices.demo.bombardier.dto.toExtended
 import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServicesManager
 import com.itmo.microservices.demo.bombardier.flow.LoadProfile
+import com.itmo.microservices.demo.bombardier.flow.QuotaService
 import com.itmo.microservices.demo.bombardier.flow.SinLoad
 import com.itmo.microservices.demo.bombardier.flow.TestController
 import com.itmo.microservices.demo.bombardier.flow.TestParameters
@@ -22,7 +23,8 @@ import java.time.Duration
 @RequestMapping("/test")
 class BombardierController(
     private val testApi: TestController,
-    private val services: TestedServicesManager
+    private val services: TestedServicesManager,
+    private val quotaService: QuotaService
 ) {
     companion object {
         val logger = LoggerFactory.getLogger(BombardierController::class.java)
@@ -76,6 +78,11 @@ class BombardierController(
         ]
     )
     fun runTest(@RequestBody request: RunTestRequest) {
+        if (!quotaService.startTestRun(request.token)) {
+            logger.warn("Quota exceeded for service: ${request.serviceName}")
+            throw IllegalStateException("Quota exceeded for provided token")
+        }
+
         testApi.startTestingForService(
             TestParameters(
                 serviceName = request.serviceName,
@@ -88,7 +95,7 @@ class BombardierController(
                 paymentProcessingTimeAmplitude = request.ptvaMillis,
                 variatePaymentProcessingTime = request.variatePaymentProcessingTime,
                 loadProfile = loadProfile(request.profile, request.ratePerSecond),
-                token = request.token,
+                token = if (request.onPremises) "on_premises" else request.token,
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()
