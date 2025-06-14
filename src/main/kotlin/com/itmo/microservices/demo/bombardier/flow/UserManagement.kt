@@ -30,7 +30,7 @@ class UserManagement(
             }.onSuccess { user ->
                 userIdsByService.add(user.id)
             }.onFailure {
-                log.error("User has not been created", it)
+                log.error("User has not been created, url ${externalServiceApi.descriptor.url}", it)
             }
         }
 
