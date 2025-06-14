@@ -79,15 +79,20 @@ class TestController(
             throw BadRequestException("There is no such feature launch several flows for the service in parallel :(")
         }
 
-        val descriptor = testedServicesManager.descriptorByToken(params.token)
-        val proxy = testedServicesManager.getServiceProxy(params.serviceName)
+        try {
+            val descriptor = testedServicesManager.descriptorByToken(params.token)
+            val proxy = testedServicesManager.getServiceProxy(params.serviceName)
 
-        runBlocking {
-            proxy.userManagement.createUsersPool(params.numberOfUsers)
+            runBlocking {
+                proxy.userManagement.createUsersPool(params.numberOfUsers)
+            }
+
+            logger.info("Launch coroutine for $descriptor")
+            launchTestCycle(descriptor, proxy)
+        } catch (t: Throwable) {
+            logger.error("Test failed for ${params.serviceName}.", t)
+            runningTests.remove(params.serviceName)
         }
-
-        logger.info("Launch coroutine for $descriptor")
-        launchTestCycle(descriptor, proxy)
     }
 
     fun getTestingFlowForService(serviceName: String): TestingFlow {
@@ -119,34 +124,44 @@ class TestController(
         descriptor: ServiceDescriptor,
         serviceProxy: ServiceProxy,
     ) {
-        val logger = LoggerWrapper(log, descriptor.name)
-        val serviceName = descriptor.name
-        val testingFlow = runningTests[serviceName] ?: return
+        try {
+            val logger = LoggerWrapper(log, descriptor.name)
+            val serviceName = descriptor.name
+            val testingFlow = runningTests[serviceName] ?: return
 
-        val params = testingFlow.testParams
+            val params = testingFlow.testParams
 
-        val amplitude = ((params.loadProfile.sinLoad?.amplitudeRatio ?: 0.0) * params.ratePerSecond).toInt()
-        val mainLimiter =  SlowStartRateLimiter(params.ratePerSecond + amplitude, Duration.ofSeconds(1), slowStartOn = true)
+            val amplitude = ((params.loadProfile.sinLoad?.amplitudeRatio ?: 0.0) * params.ratePerSecond).toInt()
+            val mainLimiter =
+                SlowStartRateLimiter(params.ratePerSecond + amplitude, Duration.ofSeconds(1), slowStartOn = true)
 
-        val rateLimitersList = mutableListOf<RateLimiter>()
+            val rateLimitersList = mutableListOf<RateLimiter>()
 
-        params.loadProfile.sinLoad?.let {
-            rateLimitersList.add(
-                SinRateLimiter(params.ratePerSecond, Duration.ofSeconds(1), amplitude, it.period.toSeconds().toInt())
-            )
-        }
-
-        val rateLimiter = AllAllowCompositeRateLimiter(listOf(mainLimiter, *rateLimitersList.toTypedArray()))
-
-        val testStages = mutableListOf<TestStage>().also {
-            it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
-            it.add(orderCreationStage.asErrorFree().asMetricRecordable())
-            if (!testingFlow.testParams.stopAfterOrderCreation) {
-                it.add(orderPaymentStage.asErrorFree().asMetricRecordable())
+            params.loadProfile.sinLoad?.let {
+                rateLimitersList.add(
+                    SinRateLimiter(
+                        params.ratePerSecond,
+                        Duration.ofSeconds(1),
+                        amplitude,
+                        it.period.toSeconds().toInt()
+                    )
+                )
             }
-        }
 
-        val testInfo = TestImmutableInfo(serviceName = serviceName, stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation)
+            val rateLimiter = AllAllowCompositeRateLimiter(listOf(mainLimiter, *rateLimitersList.toTypedArray()))
+
+            val testStages = mutableListOf<TestStage>().also {
+                it.add(choosingUserAccountStage.asErrorFree().asMetricRecordable())
+                it.add(orderCreationStage.asErrorFree().asMetricRecordable())
+                if (!testingFlow.testParams.stopAfterOrderCreation) {
+                    it.add(orderPaymentStage.asErrorFree().asMetricRecordable())
+                }
+            }
+
+            val testInfo = TestImmutableInfo(
+                serviceName = serviceName,
+                stopAfterOrderCreation = testingFlow.testParams.stopAfterOrderCreation
+            )
 //        for (i in 1..250_000) {
 //        val testContext = TestContext(
 //            serviceName = serviceName,
@@ -159,39 +174,40 @@ class TestController(
 //            paymentProcessingTimeAmplitudeMillis = testingFlow.testParams.paymentProcessingTimeAmplitude,
 //        )
 
-        while (true) {
-            val testNum = testingFlow.testsStarted.getAndIncrement()
-            if (testNum > params.numberOfTests) {
-                logger.error("Wrapping up test flow. Number of tests exceeded")
-                runningTests.remove(serviceName)
-                return
-            }
-
             while (true) {
-                if (rateLimiter.tick() && testingFlow.slowDownTill.get() < System.currentTimeMillis()) {
-                    break
+                val testNum = testingFlow.testsStarted.getAndIncrement()
+                if (testNum > params.numberOfTests) {
+                    logger.error("Wrapping up test flow. Number of tests exceeded")
+                    return
                 }
-                Thread.sleep(1000 - System.currentTimeMillis() % 1000)
-            }
 
-            val testContext = TestContext(
-                serviceName = serviceName,
-                launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
-                totalTestsNumber = testingFlow.testParams.numberOfTests,
-                paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
-                variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
-                testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
-                testImmutableInfo = testInfo,
-                paymentProcessingTimeAmplitudeMillis = testingFlow.testParams.paymentProcessingTimeAmplitude,
-            )
+                while (true) {
+                    if (rateLimiter.tick() && testingFlow.slowDownTill.get() < System.currentTimeMillis()) {
+                        break
+                    }
+                    Thread.sleep(1000 - System.currentTimeMillis() % 1000)
+                }
 
-            testLaunchScope.launch(testContext) {
-                testContext.testStartTime = System.currentTimeMillis()
-                logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
-                launchNewTestFlow(testContext, testingFlow, descriptor, serviceProxy, testStages)
+                val testContext = TestContext(
+                    serviceName = serviceName,
+                    launchTestsRatePerSec = testingFlow.testParams.ratePerSecond,
+                    totalTestsNumber = testingFlow.testParams.numberOfTests,
+                    paymentProcessingTimeMillis = testingFlow.testParams.paymentProcessingTimeMillis,
+                    variatePaymentProcessingTime = testingFlow.testParams.variatePaymentProcessingTime,
+                    testSuccessByThePaymentFact = testingFlow.testParams.testSuccessByThePaymentFact,
+                    testImmutableInfo = testInfo,
+                    paymentProcessingTimeAmplitudeMillis = testingFlow.testParams.paymentProcessingTimeAmplitude,
+                )
+
+                testLaunchScope.launch(testContext) {
+                    testContext.testStartTime = System.currentTimeMillis()
+                    logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+                    launchNewTestFlow(testContext, testingFlow, descriptor, serviceProxy, testStages)
+                }
             }
+        } finally {
+            runningTests.remove(descriptor.name)
         }
-//        }
     }
 
     private suspend fun launchNewTestFlow(
