@@ -50,16 +50,16 @@ class TestedServicesManager(
         storage.add(descriptor)
     }
 
-    fun descriptorByName(name: String): ServiceDescriptor {
-        return storage.firstOrNull { it.name == name } ?: throw ServiceDescriptorNotFoundException(name)
-    }
+//    fun descriptorByName(name: String): ServiceDescriptor {
+//        return storage.firstOrNull { it.name == name } ?: throw ServiceDescriptorNotFoundException(name)
+//    }
 
     fun descriptorByToken(token: String): ServiceDescriptor {
         return storage.firstOrNull { it.token == token } ?: throw TokenInvalidException(token)
     }
 
-    fun getServiceProxy(name: String): ServiceProxy {
-        val descriptor = descriptorByName(name)
+    fun getServiceProxy(name: String, token: String): ServiceProxy {
+        val descriptor = descriptorByToken(token)
         return apis.getOrPut(descriptor) {
             val api = RealExternalService(descriptor, UserStorage(), props)
             ServiceProxy(api, UserManagement(api))

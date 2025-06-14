@@ -81,7 +81,7 @@ class TestController(
 
         try {
             val descriptor = testedServicesManager.descriptorByToken(params.token)
-            val proxy = testedServicesManager.getServiceProxy(params.serviceName)
+            val proxy = testedServicesManager.getServiceProxy(params.serviceName, params.token)
 
             runBlocking {
                 proxy.userManagement.createUsersPool(params.numberOfUsers)
