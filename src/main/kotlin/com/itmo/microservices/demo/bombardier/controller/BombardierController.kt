@@ -78,6 +78,8 @@ class BombardierController(
         ]
     )
     fun runTest(@RequestBody request: RunTestRequest) {
+        logger.warn("Request: $request")
+
         if (!quotaService.startTestRun(request.token)) {
             logger.warn("Quota exceeded for service: ${request.serviceName}")
             throw IllegalStateException("Quota exceeded for provided token")
