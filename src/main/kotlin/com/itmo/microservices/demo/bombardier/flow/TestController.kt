@@ -1,6 +1,7 @@
 package com.itmo.microservices.demo.bombardier.flow
 
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
+import com.itmo.microservices.demo.bombardier.controller.BombardierController
 import com.itmo.microservices.demo.bombardier.exception.BadRequestException
 import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServicesManager
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceProxy
@@ -71,6 +72,7 @@ class TestController(
 
     fun startTestingForService(params: TestParameters) {
         val logger = LoggerWrapper(log, params.serviceName)
+        logger.warn("Params: $params")
 
         val testingFlowCoroutine = SupervisorJob()
 
