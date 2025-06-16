@@ -6,7 +6,7 @@
     <springProperty name="service" source="spring.application.name"/>
     <springProperty name="logstashUrl" source="logstash.url"/>
 
-    <logger name="com.itmo" level="WARN"/>
+    <logger name="com.itmo" level="INFO"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
