@@ -41,12 +41,16 @@ class TestController(
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
 
-    private val executor: ExecutorService = Executors.newFixedThreadPool(32, NamedThreadFactory("test-controller-executor")).also {
-        Metrics.executorServiceMonitoring(it, "test-controller-executor")
+    private val testMainLoopExecutor: ExecutorService = Executors.newFixedThreadPool(4, NamedThreadFactory("test-controller-executor")).also {
+        Metrics.executorServiceMonitoring(it, "test-main-loop-executor")
     }
 
-//    private val testInvokationScope = CoroutineScope(executor.asCoroutineDispatcher())
-    private val testLaunchScope = CoroutineScope(executor.asCoroutineDispatcher())
+    private val individualTestExecutor: ExecutorService = Executors.newFixedThreadPool(32, NamedThreadFactory("test-controller-executor")).also {
+        Metrics.executorServiceMonitoring(it, "individual-test-executor")
+    }
+
+    private val testMainLoopScope = CoroutineScope(testMainLoopExecutor.asCoroutineDispatcher())
+    private val individualTestScope = CoroutineScope(individualTestExecutor.asCoroutineDispatcher())
     private val rateLimitsTokensChannel = Channel<Int>(Channel.UNLIMITED)
 
 //    private val testStages = listOf<TestStage>(
@@ -85,14 +89,20 @@ class TestController(
             val descriptor = testedServicesManager.descriptorByToken(params.token)
             val proxy = testedServicesManager.getServiceProxy(params.serviceName, params.token)
 
-            runBlocking {
-                proxy.userManagement.createUsersPool(params.numberOfUsers)
-            }
 
-            logger.info("Launch coroutine for $descriptor")
-            launchTestCycle(descriptor, proxy)
+            testMainLoopScope.launch {
+                try {
+                    proxy.userManagement.createUsersPool(params.numberOfUsers)
+
+                    logger.info("Launch coroutine for $descriptor")
+                    launchTestCycle(descriptor, proxy)
+                } catch (t: Throwable) {
+                    logger.error("Test main loop failed  ${params.serviceName}.", t)
+                    runningTests.remove(params.serviceName)
+                }
+            }
         } catch (t: Throwable) {
-            logger.error("Test failed for ${params.serviceName}.", t)
+            logger.error("Test start failed for ${params.serviceName}.", t)
             runningTests.remove(params.serviceName)
         }
     }
@@ -201,7 +211,7 @@ class TestController(
                     paymentProcessingTimeAmplitudeMillis = testingFlow.testParams.paymentProcessingTimeAmplitude,
                 )
 
-                testLaunchScope.launch(testContext) {
+                individualTestScope.launch(testContext) {
                     testContext.testStartTime = System.currentTimeMillis()
                     logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
                     launchNewTestFlow(testContext, testingFlow, descriptor, serviceProxy, testStages)
