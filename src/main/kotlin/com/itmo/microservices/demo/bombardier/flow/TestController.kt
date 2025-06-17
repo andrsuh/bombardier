@@ -194,6 +194,7 @@ class TestController(
                 }
 
                 while (true) {
+                    logger.warn("${rateLimiter.tick()}, ${testingFlow.slowDownTill.get()}, ${System.currentTimeMillis()}")
                     if (rateLimiter.tick() && testingFlow.slowDownTill.get() < System.currentTimeMillis()) {
                         logger.warn("tick done, testNum = $testNum, serviceName = $serviceName")
                         break
