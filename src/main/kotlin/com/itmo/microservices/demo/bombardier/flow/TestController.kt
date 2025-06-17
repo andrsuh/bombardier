@@ -97,7 +97,7 @@ class TestController(
                     logger.info("Launch coroutine for $descriptor")
                     launchTestCycle(descriptor, proxy)
                 } catch (t: Throwable) {
-                    logger.error("Test main loop failed  ${params.serviceName}.", t)
+                    logger.error("Test main loop failed for ${params.serviceName}.", t)
                     runningTests.remove(params.serviceName)
                 }
             }
@@ -195,6 +195,7 @@ class TestController(
 
                 while (true) {
                     if (rateLimiter.tick() && testingFlow.slowDownTill.get() < System.currentTimeMillis()) {
+                        logger.warn("tick done, testNum = $testNum, serviceName = $serviceName")
                         break
                     }
                     Thread.sleep(1000 - System.currentTimeMillis() % 1000)
