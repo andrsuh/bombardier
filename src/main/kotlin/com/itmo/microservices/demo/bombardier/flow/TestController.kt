@@ -74,12 +74,11 @@ class TestController(
 
 
     fun startTestingForService(params: TestParameters) {
-        val logger = LoggerWrapper(log, params.serviceName)
+        val testingFlowCoroutine = SupervisorJob()
+        val descriptor = testedServicesManager.descriptorByToken(params.token)
+        val logger = LoggerWrapper(log, descriptor.name)
         logger.warn("Params: $params")
 
-        val testingFlowCoroutine = SupervisorJob()
-
-        val descriptor = testedServicesManager.descriptorByToken(params.token)
         try {
 
             val v = runningTests.putIfAbsent(descriptor.name, TestingFlow(params, testingFlowCoroutine))
@@ -194,7 +193,6 @@ class TestController(
                 }
 
                 while (true) {
-                    logger.warn("${rateLimiter.tick()}, ${testingFlow.slowDownTill.get()}, ${System.currentTimeMillis()}")
                     if (rateLimiter.tick() && testingFlow.slowDownTill.get() < System.currentTimeMillis()) {
                         logger.warn("tick done, testNum = $testNum, serviceName = $serviceName")
                         break
