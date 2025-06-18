@@ -1,7 +1,6 @@
 package com.itmo.microservices.demo.bombardier.flow
 
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
-import com.itmo.microservices.demo.bombardier.controller.BombardierController
 import com.itmo.microservices.demo.bombardier.exception.BadRequestException
 import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServicesManager
 import com.itmo.microservices.demo.bombardier.external.knownServices.ServiceProxy
@@ -80,14 +79,15 @@ class TestController(
 
         val testingFlowCoroutine = SupervisorJob()
 
-        val v = runningTests.putIfAbsent(params.serviceName, TestingFlow(params, testingFlowCoroutine))
-        if (v != null) {
-            throw BadRequestException("There is no such feature launch several flows for the service in parallel :(")
-        }
-
+        val descriptor = testedServicesManager.descriptorByToken(params.token)
         try {
-            val descriptor = testedServicesManager.descriptorByToken(params.token)
-            val proxy = testedServicesManager.getServiceProxy(params.serviceName, params.token)
+
+            val v = runningTests.putIfAbsent(descriptor.name, TestingFlow(params, testingFlowCoroutine))
+            if (v != null) {
+                throw BadRequestException("There is no such feature launch several flows for the service in parallel :(")
+            }
+
+            val proxy = testedServicesManager.getServiceProxy(params.token)
 
 
             testMainLoopScope.launch {
@@ -97,13 +97,13 @@ class TestController(
                     logger.info("Launch coroutine for $descriptor")
                     launchTestCycle(descriptor, proxy)
                 } catch (t: Throwable) {
-                    logger.error("Test main loop failed for ${params.serviceName}.", t)
-                    runningTests.remove(params.serviceName)
+                    logger.error("Test main loop failed for ${descriptor.name}.", t)
+                    runningTests.remove(descriptor.name)
                 }
             }
         } catch (t: Throwable) {
-            logger.error("Test start failed for ${params.serviceName}.", t)
-            runningTests.remove(params.serviceName)
+            logger.error("Test start failed for ${descriptor.name}.", t)
+            runningTests.remove(descriptor.name)
         }
     }
 

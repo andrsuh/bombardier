@@ -58,7 +58,7 @@ class TestedServicesManager(
         return storage.firstOrNull { it.token == token } ?: throw TokenInvalidException(token)
     }
 
-    fun getServiceProxy(name: String, token: String): ServiceProxy {
+    fun getServiceProxy(token: String): ServiceProxy {
         val descriptor = descriptorByToken(token)
         return apis.getOrPut(descriptor) {
             val api = RealExternalService(descriptor, UserStorage(), props)
