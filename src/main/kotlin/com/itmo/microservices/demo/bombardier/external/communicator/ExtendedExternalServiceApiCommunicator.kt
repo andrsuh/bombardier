@@ -10,10 +10,10 @@ import kotlinx.coroutines.async
 import java.net.http.HttpRequest
 import java.util.concurrent.Executors
 
-open class ExtendedExternalServiceApiCommunicator(descriptor: ServiceDescriptor, props: BombardierProperties) :
-    ExternalServiceApiCommunicator(
-        descriptor, props
-    ) {
+open class ExtendedExternalServiceApiCommunicator(
+    descriptor: ServiceDescriptor,
+    props: BombardierProperties
+): ExternalServiceApiCommunicator(descriptor, props) {
 
     companion object {
 //        val mappingScope = CoroutineScope(Executors.newFixedThreadPool(128, NamedThreadFactory("mappingScope")).also {

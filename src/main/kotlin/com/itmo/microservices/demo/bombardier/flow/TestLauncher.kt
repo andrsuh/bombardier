@@ -28,14 +28,14 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 
 @Service
-class TestController(
+class TestLauncher(
     private val testedServicesManager: TestedServicesManager,
     val choosingUserAccountStage: ChoosingUserAccountStage,
     val orderCreationStage: OrderCreationStage,
     val orderPaymentStage: OrderPaymentStage,
 ) {
     companion object {
-        val log = LoggerFactory.getLogger(TestController::class.java)
+        val log = LoggerFactory.getLogger(TestLauncher::class.java)
     }
 
     val runningTests = ConcurrentHashMap<String, TestingFlow>()
@@ -75,9 +75,9 @@ class TestController(
 
     fun startTestingForService(params: TestParameters) {
         val testingFlowCoroutine = SupervisorJob()
-        val descriptor = testedServicesManager.descriptorByToken(params.token)
+        val descriptor = testedServicesManager.descriptorByToken(params.token, params.onPremises)
         val logger = LoggerWrapper(log, descriptor.name)
-        logger.warn("Params: $params")
+        logger.warn("Descriptor: $descriptor, params: $params")
 
         try {
 
@@ -86,8 +86,7 @@ class TestController(
                 throw BadRequestException("There is no such feature launch several flows for the service in parallel :(")
             }
 
-            val proxy = testedServicesManager.getServiceProxy(params.token)
-
+            val proxy = testedServicesManager.getServiceProxy(descriptor, params.onPremises)
 
             testMainLoopScope.launch {
                 try {
@@ -344,6 +343,7 @@ data class TestParameters(
     val variatePaymentProcessingTime: Boolean = false,
     val loadProfile: LoadProfile,
     val token: String,
+    val onPremises: Boolean,
 )
 
 data class LoadProfile(

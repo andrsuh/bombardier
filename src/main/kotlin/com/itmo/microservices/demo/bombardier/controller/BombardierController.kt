@@ -1,7 +1,5 @@
 package com.itmo.microservices.demo.bombardier.controller
 
-import com.itmo.microservices.demo.bombardier.ServiceDescriptor
-import com.itmo.microservices.demo.bombardier.dto.NewServiceRequest
 import com.itmo.microservices.demo.bombardier.dto.RunTestRequest
 import com.itmo.microservices.demo.bombardier.dto.RunningTestsResponse
 import com.itmo.microservices.demo.bombardier.dto.toExtended
@@ -9,7 +7,7 @@ import com.itmo.microservices.demo.bombardier.external.knownServices.TestedServi
 import com.itmo.microservices.demo.bombardier.flow.LoadProfile
 import com.itmo.microservices.demo.bombardier.flow.QuotaService
 import com.itmo.microservices.demo.bombardier.flow.SinLoad
-import com.itmo.microservices.demo.bombardier.flow.TestController
+import com.itmo.microservices.demo.bombardier.flow.TestLauncher
 import com.itmo.microservices.demo.bombardier.flow.TestParameters
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
@@ -22,8 +20,9 @@ import java.time.Duration
 @RestController
 @RequestMapping("/test")
 class BombardierController(
-    private val testApi: TestController,
+    private val testApi: TestLauncher,
     private val services: TestedServicesManager,
+    private val serviceManager: TestedServicesManager,
     private val quotaService: QuotaService
 ) {
     companion object {
@@ -79,15 +78,17 @@ class BombardierController(
     )
     fun runTest(@RequestBody request: RunTestRequest) {
         logger.warn("Request: $request")
+        // auth
+        val desc = serviceManager.descriptorByToken(request.token)
 
         if (!quotaService.startTestRun(request.token)) {
-            logger.warn("Quota exceeded for service: ${request.serviceName}")
+            logger.warn("Quota exceeded for service: ${desc.name}")
             throw IllegalStateException("Quota exceeded for provided token")
         }
 
         testApi.startTestingForService(
             TestParameters(
-                serviceName = request.serviceName,
+                serviceName = desc.name,
                 numberOfUsers = request.usersCount,
                 numberOfTests = request.testCount,
                 ratePerSecond = request.ratePerSecond,
@@ -97,7 +98,8 @@ class BombardierController(
                 paymentProcessingTimeAmplitude = request.ptvaMillis,
                 variatePaymentProcessingTime = request.variatePaymentProcessingTime,
                 loadProfile = loadProfile(request.profile, request.ratePerSecond),
-                token = if (request.onPremises) "on_premises" else request.token,
+                token = request.token,
+                onPremises = request.onPremises,
             )
         )
         // testApi.getTestingFlowForService(request.serviceName).testFlowCoroutine.complete()

@@ -4,11 +4,13 @@ import com.itmo.microservices.demo.bombardier.BombardierProperties
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
 import com.itmo.microservices.demo.bombardier.external.ExternalServiceApi
 import com.itmo.microservices.demo.bombardier.external.RealExternalService
+import com.itmo.microservices.demo.bombardier.external.communicator.UserAwareExternalServiceApiCommunicator
 import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
 import com.itmo.microservices.demo.bombardier.flow.UserManagement
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.bind.annotation.ResponseStatus
+import java.util.concurrent.ConcurrentHashMap
 
 @ResponseStatus(HttpStatus.NOT_FOUND)
 class ServiceDescriptorNotFoundException(name: String) : Exception("Descriptor for service $name was not found")
@@ -30,8 +32,12 @@ private const val THRESHOLD_STORAGE = 100
 class TestedServicesManager(
     private val props: BombardierProperties
 ) {
+    companion object {
+        const val ON_PREM_DESCRIPTOR_TOKEN = "on_premises"
+    }
+
     val storage = mutableListOf<ServiceDescriptor>()
-    private val apis = mutableMapOf<ServiceDescriptor, ServiceProxy>() // todo make concurrent
+    private val apis = ConcurrentHashMap<String, ServiceProxy>()
 
     init {
         storage.addAll(props.getDescriptors())
@@ -50,19 +56,25 @@ class TestedServicesManager(
         storage.add(descriptor)
     }
 
-//    fun descriptorByName(name: String): ServiceDescriptor {
-//        return storage.firstOrNull { it.name == name } ?: throw ServiceDescriptorNotFoundException(name)
-//    }
+    fun descriptorByToken(token: String) =
+        storage.firstOrNull { it.token == token } ?: throw TokenInvalidException(token)
 
-    fun descriptorByToken(token: String): ServiceDescriptor {
-        return storage.firstOrNull { it.token == token } ?: throw TokenInvalidException(token)
+    fun descriptorByToken(token: String, onPremises: Boolean = false): ServiceDescriptor {
+        return if (!onPremises) {
+            descriptorByToken(token)
+        } else {
+            val onPremDescriptor = descriptorByToken(ON_PREM_DESCRIPTOR_TOKEN)
+            val serviceDescriptor = descriptorByToken(token)
+            return serviceDescriptor.copy(
+                url = onPremDescriptor.url
+            )
+        }
     }
 
-    fun getServiceProxy(token: String): ServiceProxy {
-        val descriptor = descriptorByToken(token)
-        return apis.getOrPut(descriptor) {
-            val api = RealExternalService(descriptor, UserStorage(), props)
-            ServiceProxy(api, UserManagement(api))
+    fun getServiceProxy(descriptor: ServiceDescriptor, onPremises: Boolean): ServiceProxy {
+        return apis.getOrPut("${descriptor.token}:onPremises=$onPremises") {
+            val api = RealExternalService(UserStorage(), UserAwareExternalServiceApiCommunicator(descriptor, props))
+            ServiceProxy(api, UserManagement(descriptor, api))
         }
     }
 }

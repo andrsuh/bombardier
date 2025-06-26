@@ -516,6 +516,11 @@ class ExternalSystemController(
             }
         } catch (e: TimeoutCancellationException) {
             return ResponseEntity.status(REQUEST_TIMEOUT).body(request.failBulk("Timeout"))
+        } catch (e: Throwable) {
+            logger.error("Unexpected error while processing bulk request", e)
+            return ResponseEntity
+                .status(INTERNAL_SERVER_ERROR)
+                .body(request.failBulk("Unexpected error: ${e.message}"))
         }
 
         return ResponseEntity.status(code).body(resp)
@@ -544,6 +549,11 @@ class ExternalSystemController(
             }
         } catch (e: TimeoutCancellationException) {
             return ResponseEntity.status(REQUEST_TIMEOUT).body(Response(transactionId, paymentId, false, "Timeout"))
+        } catch (e: Throwable) {
+            logger.error("Unexpected error while processing request", e)
+            return ResponseEntity
+                .status(INTERNAL_SERVER_ERROR)
+                .body(Response(transactionId, paymentId, false, "Unexpected error: ${e.message}"))
         }
 
         return ResponseEntity.status(code).body(bulkResp.responses.first())

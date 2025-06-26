@@ -75,7 +75,7 @@ open class ExternalServiceApiCommunicator(
         ))
         header(HttpHeaders.CONTENT_TYPE, "application/json")
     }.run {
-        mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
+        mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken("${descriptor.name}:${descriptor.url}")
     }
 
     protected suspend fun reauthenticate(token: ExternalServiceToken) =
@@ -85,7 +85,7 @@ open class ExternalServiceApiCommunicator(
             header(HttpHeaders.CONTENT_TYPE, "application/json")
             header(HttpHeaders.AUTHORIZATION, "Bearer ${token.refreshToken}")
         }.run {
-            mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken(descriptor.url)
+            mapper.readValue(body(), TokenResponse::class.java).toExternalServiceToken("${descriptor.name}:${descriptor.url}")
         }
 
     suspend fun execute(method: String, url: String) = execute(method, url) {}

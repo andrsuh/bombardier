@@ -5,14 +5,11 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.KeyDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.itmo.microservices.demo.bombardier.ServiceDescriptor
 import com.itmo.microservices.demo.bombardier.external.OrderStatus.OrderCollecting
 import java.util.*
 
 
 interface ExternalServiceApi {
-    abstract val descriptor: ServiceDescriptor
-
     suspend fun getUser(id: UUID): User
     suspend fun createUser(name: String): User
 

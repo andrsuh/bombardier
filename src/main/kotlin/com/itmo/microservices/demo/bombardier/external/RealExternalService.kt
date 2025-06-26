@@ -5,7 +5,7 @@ import com.itmo.microservices.demo.bombardier.external.communicator.ExternalServ
 import com.itmo.microservices.demo.bombardier.external.communicator.InvalidExternalServiceResponseException
 import com.itmo.microservices.demo.bombardier.external.communicator.UserAwareExternalServiceApiCommunicator
 import com.itmo.microservices.demo.bombardier.ServiceDescriptor
-import com.itmo.microservices.demo.bombardier.external.communicator.mapper
+import com.itmo.microservices.demo.bombardier.external.communicator.ExternalServiceApiCommunicator
 import com.itmo.microservices.demo.bombardier.external.storage.UserStorage
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -15,11 +15,9 @@ import java.util.*
 class UserNotAuthenticatedException(username: String) : Exception(username)
 
 class RealExternalService(
-    override val descriptor: ServiceDescriptor,
     private val userStorage: UserStorage,
-    props: BombardierProperties
+    val communicator: UserAwareExternalServiceApiCommunicator,
 ) : ExternalServiceApi {
-    private val communicator = UserAwareExternalServiceApiCommunicator(descriptor, props)
 
     suspend fun getUserSession(id: UUID): ExternalServiceToken {
         val username = getUser(id).name

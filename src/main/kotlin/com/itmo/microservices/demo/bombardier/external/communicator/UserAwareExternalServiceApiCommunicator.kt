@@ -6,8 +6,10 @@ import kotlinx.coroutines.delay
 
 private const val REFRESH_TIME_MS: Long = 1000L * (tokenLifetimeSec - 30)
 
-class UserAwareExternalServiceApiCommunicator(descriptor: ServiceDescriptor, props: BombardierProperties) :
-    ExtendedExternalServiceApiCommunicator(descriptor, props) {
+class UserAwareExternalServiceApiCommunicator(
+    descriptor: ServiceDescriptor,
+    props: BombardierProperties
+) : ExtendedExternalServiceApiCommunicator(descriptor, props) {
     private val usersMap = mutableMapOf<String, ExternalServiceToken>()
 
 //    private val refresherCoroutine = CoroutineScope(ex.asCoroutineDispatcher()).launch {
