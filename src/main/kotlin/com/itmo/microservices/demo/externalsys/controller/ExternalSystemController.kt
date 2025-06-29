@@ -34,13 +34,18 @@ class ExternalSystemController(
         val mappingScope = CoroutineScope(Executors.newFixedThreadPool(8).asCoroutineDispatcher())
     }
 
-    private val accounts = ConcurrentHashMap<String, Account>()
+    private val accounts = ConcurrentHashMap<ServiceAccountKey, Account>()
+
+    data class ServiceAccountKey(
+        val serviceName: String,
+        val accountName: String
+    )
 
     @PostConstruct
     fun init() {
         services.storage.forEach { service ->
             val testAcc = "test-account"
-            accounts["${service.name}-$testAcc"] = Account(
+            accounts[ServiceAccountKey(service.name, testAcc)] = Account(
                 service.name,
                 testAcc,
                 null,
@@ -51,10 +56,11 @@ class ExternalSystemController(
 
             // default 1
             val basePrice = 100
-            val accName1 = "acc-1"
-            accounts["${service.name}-$accName1"] = Account(
+
+            val acc1 = ServiceAccountKey(service.name, "acc-1")
+            accounts[acc1] = Account(
                 service.name,
-                accName1,
+                acc1.accountName,
                 null,
                 slo = Slo(
                     upperLimitInvocationMillis = 0,
@@ -69,10 +75,10 @@ class ExternalSystemController(
             )
 
             // default 2
-            val accName2 = "default-2"
-            accounts["${service.name}-$accName2"] = Account(
+            val acc2 = ServiceAccountKey(service.name, "default-2")
+            accounts[acc2] = Account(
                 service.name,
-                accName2,
+                acc2.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 10_000),
                 speedLimits = SpeedLimits(10, 100),
@@ -80,10 +86,10 @@ class ExternalSystemController(
             )
 
             // acc 3
-            val accName3 = "acc-3"
-            accounts["${service.name}-$accName3"] = Account(
+            val acc3 = ServiceAccountKey(service.name, "acc-3")
+            accounts[acc3] = Account(
                 service.name,
-                accName3,
+                acc3.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 2_000),
                 speedLimits = SpeedLimits(10, 30),
@@ -91,10 +97,10 @@ class ExternalSystemController(
             )
 
             // default 4 -> like default 3, but window size is 15
-            val accName4 = "default-4"
-            accounts["${service.name}-$accName4"] = Account(
+            val acc4 = ServiceAccountKey(service.name,  "default-4")
+            accounts[acc4] = Account(
                 service.name,
-                accName4,
+                acc4.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 9_000),
                 speedLimits = SpeedLimits(5, 15),
@@ -102,10 +108,10 @@ class ExternalSystemController(
             )
 
             // acc 5
-            val accName5 = "acc-5"
-            accounts["${service.name}-$accName5"] = Account(
+            val acc5 = ServiceAccountKey(service.name,  "acc-5")
+            accounts[acc5] = Account(
                 service.name,
-                accName5,
+                acc5.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 9800),
                 speedLimits = SpeedLimits(3, 5),
@@ -113,20 +119,20 @@ class ExternalSystemController(
             )
 
             // default 6 fullBlockingProbability is 0.01
-            val accName6 = "default-6"
-            accounts["${service.name}-$accName6"] = Account(
+            val acc6 = ServiceAccountKey(service.name,  "default-6")
+            accounts[acc6] = Account(
                 service.name,
-                accName6,
+                acc6.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1_000),
                 speedLimits = SpeedLimits(30, 35),
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName7 = "acc-7"
-            accounts["${service.name}-$accName7"] = Account(
+            val acc7 = ServiceAccountKey(service.name,  "acc-7")
+            accounts[acc7] = Account(
                 service.name,
-                accName7,
+                acc7.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.1, timeLimitsBreachingMinTime = Duration.ofMillis(9400), timeLimitsBreachingMaxTime = Duration.ofMillis(9500)),
                 network = Network(40, 90),
@@ -136,10 +142,10 @@ class ExternalSystemController(
             )
 
             // default 8
-            val accName8 = "acc-8"
-            accounts["${service.name}-$accName8"] = Account(
+            val acc8 = ServiceAccountKey(service.name,  "acc-8")
+            accounts[acc8] = Account(
                 service.name,
-                accName8,
+                acc8.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1400, errorResponseProbability = 0.1),
                 network = Network(40, 90),
@@ -147,10 +153,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName9 = "acc-9"
-            accounts["${service.name}-$accName9"] = Account(
+            val acc9 = ServiceAccountKey(service.name,  "acc-9")
+            accounts[acc9] = Account(
                 service.name,
-                accName9,
+                acc9.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1000),
                 network = Network(15, 40),
@@ -158,10 +164,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName10 = "acc-10"
-            accounts["${service.name}-$accName10"] = Account(
+            val acc10 = ServiceAccountKey(service.name,  "acc-10")
+            accounts[acc10] = Account(
                 service.name,
-                accName10,
+                acc10.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1000),
                 network = Network(15, 40),
@@ -169,10 +175,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName11 = "acc-11"
-            accounts["${service.name}-$accName11"] = Account(
+            val acc11 = ServiceAccountKey(service.name,  "acc-11")
+            accounts[acc11] = Account(
                 service.name,
-                accName11,
+                acc11.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 2000),
                 network = Network(15, 40),
@@ -180,30 +186,30 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName12 = "acc-12"
-            accounts["${service.name}-$accName12"] = Account(
+            val acc12 = ServiceAccountKey(service.name,  "acc-12")
+            accounts[acc12] = Account(
                 service.name,
-                accName12,
+                acc12.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 20_000),
                 speedLimits = SpeedLimits(1100, 20_000),
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName13 = "acc-13"
-            accounts["${service.name}-$accName13"] = Account(
+            val acc13 = ServiceAccountKey(service.name,  "acc-13")
+            accounts[acc13] = Account(
                 service.name,
-                accName13,
+                acc13.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 20),
                 speedLimits = SpeedLimits(5000, 2000),
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName14 = "acc-14"
-            accounts["${service.name}-$accName14"] = Account(
+            val acc14 = ServiceAccountKey(service.name,  "acc-14")
+            accounts[acc14] = Account(
                 service.name,
-                accName14,
+                acc14.accountName,
                 null,
                 slo = Slo(
                     upperLimitInvocationMillis = 1000,
@@ -214,10 +220,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.45).toInt()
             )
 
-            val accName15 = "acc-15"
-            accounts["${service.name}-$accName15"] = Account(
+            val acc15 = ServiceAccountKey(service.name,  "acc-15")
+            accounts[acc15] = Account(
                 service.name,
-                accName15,
+                acc15.accountName,
                 null,
                 network = Network(15, 40),
                 slo = Slo(
@@ -231,10 +237,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName16 = "acc-16"
-            accounts["${service.name}-$accName16"] = Account(
+            val acc16 = ServiceAccountKey(service.name,  "acc-16")
+            accounts[acc16] = Account(
                 service.name,
-                accName16,
+                acc16.accountName,
                 null,
                 slo = Slo(upperLimitInvocationMillis = 1000, timeLimitsBreachingProbability = 0.15, timeLimitsBreachingMinTime = Duration.ofDays(1), timeLimitsBreachingMaxTime = Duration.ofDays(2)),
                 network = Network(40, 90),
@@ -243,10 +249,10 @@ class ExternalSystemController(
                 exposedAverageProcessingTime = Duration.ofMillis(800)
             )
 
-            val accName17 = "acc-17"
-            accounts["${service.name}-$accName17"] = Account(
+            val acc17 = ServiceAccountKey(service.name,  "acc-17")
+            accounts[acc17] = Account(
                 service.name,
-                accName17,
+                acc17.accountName,
                 null,
                 speedLimits = SpeedLimits(30, 40),
                 slo = Slo(lowerLimitInvocationMillis = 980, upperLimitInvocationMillis = 1000),
@@ -255,10 +261,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.3).toInt()
             )
 
-            val accName18 = "acc-18"
-            accounts["${service.name}-$accName18"] = Account(
+            val acc18 = ServiceAccountKey(service.name,  "acc-18")
+            accounts[acc18] = Account(
                 service.name,
-                accName18,
+                acc18.accountName,
                 null,
                 speedLimits = SpeedLimits(110, 10_000),
                 slo = Slo(upperLimitInvocationMillis = 2000),
@@ -266,10 +272,10 @@ class ExternalSystemController(
             )
 
 
-            val accName19 = "acc-19"
-            accounts["${service.name}-$accName19"] = Account(
+            val acc19 = ServiceAccountKey(service.name,  "acc-19")
+            accounts[acc19] = Account(
                 service.name,
-                accName19,
+                acc19.accountName,
                 null,
                 speedLimits = SpeedLimits(200, 20_000),
                 slo = Slo(
@@ -283,10 +289,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.25).toInt()
             )
 
-            val accName20 = "acc-20"
-            accounts["${service.name}-$accName20"] = Account(
+            val acc20 = ServiceAccountKey(service.name,  "acc-20")
+            accounts[acc20] = Account(
                 service.name,
-                accName20,
+                acc20.accountName,
                 null,
                 speedLimits = SpeedLimits(100, 100),
                 slo = Slo(
@@ -296,10 +302,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.35).toInt()
             )
 
-            val accName21 = "acc-21"
-            accounts["${service.name}-$accName21"] = Account(
+            val acc21 = ServiceAccountKey(service.name,  "acc-21")
+            accounts[acc21] = Account(
                 service.name,
-                accName21,
+                acc21.accountName,
                 null,
                 speedLimits = SpeedLimits(30, 600),
                 slo = Slo(
@@ -308,10 +314,10 @@ class ExternalSystemController(
                 price = (basePrice * 0.20).toInt()
             )
 
-            val accName22 = "acc-22"
-            accounts["${service.name}-$accName22"] = Account(
+            val acc22 = ServiceAccountKey(service.name,  "acc-22")
+            accounts[acc22] = Account(
                 service.name,
-                accName22,
+                acc22.accountName,
                 null,
                 slo = Slo(
                     upperLimitInvocationMillis = 1800,
@@ -328,16 +334,18 @@ class ExternalSystemController(
 
     @GetMapping("/accounts")
     fun getAccounts(@RequestParam serviceName: String): List<AccountProperties> {
-        return accounts.values.map {
-            AccountProperties(
-                serviceName,
-                it.accountName,
-                it.speedLimits.win,
-                it.speedLimits.rps,
-                it.price,
-                it.exposedAverageProcessingTime,
-            )
-        }
+        return accounts
+            .filter { it.key.serviceName == serviceName }
+            .map { (k, v) ->
+                AccountProperties(
+                    k.serviceName,
+                    k.accountName,
+                    v.speedLimits.win,
+                    v.speedLimits.rps,
+                    v.price,
+                    v.exposedAverageProcessingTime,
+                )
+            }
     }
 
     data class AccountProperties(
@@ -434,7 +442,7 @@ class ExternalSystemController(
 
     @PostMapping("/account")
     fun createAccount(@RequestBody request: AccountDto) {
-        accounts[request.accountName] = Account(
+        accounts[ServiceAccountKey(request.serviceName, request.accountName)] = Account(
             request.serviceName,
             request.accountName,
             request.callbackPath,
@@ -676,8 +684,8 @@ class ExternalSystemController(
         serviceName: String,
         accountName: String
     ): Account {
-        val account = accounts["$serviceName-$accountName"] ?: error("No such account $serviceName-$accountName")
-        return account
+        return accounts[ServiceAccountKey(serviceName, accountName)]
+            ?: throw IllegalArgumentException("No such account $serviceName-$accountName")
     }
 
     private suspend fun blockDelay(account: Account): Long? {

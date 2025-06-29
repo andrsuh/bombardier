@@ -212,7 +212,7 @@ class TestLauncher(
 
                 individualTestScope.launch(testContext) {
                     testContext.testStartTime = System.currentTimeMillis()
-                    logger.info("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
+                    logger.debug("Starting $testNum test for service $serviceName, parent job is ${testingFlow.testFlowCoroutine}")
                     launchNewTestFlow(testContext, testingFlow, descriptor, serviceProxy, testStages)
                 }
             }

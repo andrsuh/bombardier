@@ -9,6 +9,10 @@ class LoggerWrapper(
     var logger: Logger,
     var serviceName: String
 ) {
+    fun debug(msg: String) {
+        logger.debug(append(testServiceFiledName, serviceName), msg)
+    }
+
     fun info(msg: String) {
         logger.info(append(testServiceFiledName, serviceName), msg)
     }
