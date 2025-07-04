@@ -81,7 +81,7 @@ class BombardierController(
         // auth
         val desc = serviceManager.descriptorByToken(request.token)
 
-        if (!quotaService.startTestRun(request.token)) {
+        if (request.onPremises && !quotaService.startTestRun(request.token)) {
             logger.warn("Quota exceeded for service: ${desc.name}")
             throw IllegalStateException("Quota exceeded for provided token")
         }

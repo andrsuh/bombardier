@@ -47,6 +47,14 @@ management:
 bombardier:
   auth-enabled: false
   teams:
+    - name: "test-local"
+      url: "http://${TEST_SERVICE_IP:localhost}:8081"
+      token: "test-local"
+      expiresAt: 1899043124000
+    - name: "test-docker"
+      url: "http://${TEST_SERVICE_IP:host.docker.internal}:8081"
+      token: "test-docker"
+      expiresAt: 1899043124000
     - name: "on_premises"
       url: "http://${TEST_SERVICE_IP:host.docker.internal}:18080"
       token: "on_premises"
